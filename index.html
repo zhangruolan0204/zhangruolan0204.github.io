@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2027秋招管理工作台 · WorkBuddy</title>
+<meta name="description" content="2027届秋招专属管理工作台：岗位投递、笔试、面试、简历、题库、Offer对比、待办、资源一站式管理">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5FC9BE">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="秋招工作台">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css?v=19">
+</head>
+<body>
+
+<!-- ========== 登录页 ========== -->
+<div id="login" class="login-screen">
+  <div class="login-bg"></div>
+  <div class="login-card">
+    <div class="login-head" id="loginIcon"></div>
+    <h1 class="login-title">2027 秋招管理工作台</h1>
+    <p class="login-sub">电子信息类主攻 · 软件测试等转行方向兼容 · 全站密码保护</p>
+    <form id="loginForm" autocomplete="off">
+      <label class="field">
+        <span class="field-label">登录账号</span>
+        <input id="loginUser" type="text" placeholder="请输入账号" value="admin" autocomplete="username">
+      </label>
+      <label class="field">
+        <span class="field-label">登录密码</span>
+        <input id="loginPass" type="password" placeholder="请输入密码" value="admin2027" autocomplete="current-password">
+      </label>
+      <button class="btn btn-primary btn-block" type="submit">进入工作台</button>
+      <p class="login-err" id="loginErr"></p>
+    </form>
+    <div class="login-tips">
+      <div class="tip-row"><b>超级管理员</b><span>admin / admin2027（可管理全站数据、账号与同步权限）</span></div>
+      <div class="tip-row"><b>普通账号</b><span>guest / 2027qiuzhao（仅查看个人秋招数据）</span></div>
+    </div>
+    <p class="login-foot">数据保存在本机浏览器，未登录无法访问任何页面内容</p>
+  </div>
+</div>
+
+<!-- ========== 工作台主体 ========== -->
+<div id="app" class="app hidden">
+  <aside id="sidebar" class="sidebar">
+    <div class="brand">
+      <div class="brand-icon" id="brandIcon"></div>
+      <div class="brand-text">
+        <strong>秋招工作台</strong>
+        <span>2027 Campus Recruit</span>
+      </div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">
+      <div class="side-user" id="sideUser"></div>
+      <button class="btn btn-ghost btn-sm btn-block" id="logoutBtn">退出登录</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn only-mobile" id="menuBtn" aria-label="展开菜单">☰</button>
+      <div class="topbar-title">
+        <h1 id="pageTitle">首页总览</h1>
+        <p id="pageDesc">秋招全局数据看板</p>
+      </div>
+      <div class="topbar-actions">
+        <span class="chip" id="roleChip"></span>
+        <button class="btn btn-soft btn-sm" id="syncBtn">飞书同步</button>
+        <button class="btn btn-soft btn-sm" id="exportBtn">导出备份</button>
+      </div>
+    </header>
+    <div class="content" id="content"></div>
+    <footer class="foot">
+      <span>WorkBuddy 秋招工作台 · 数据存于本机浏览器，建议定期导出备份</span>
+      <span id="footSync" class="foot-sync"></span>
+    </footer>
+  </main>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toast" class="toast"></div>
+<button id="installBtn" class="install-btn hidden">添加到手机主屏幕</button>
+
+<script src="vendor/xlsx.full.min.js?v=19"></script>
+<script src="data.js?v=19"></script>
+<script src="core.js?v=19"></script>
+<script src="pages.js?v=19"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+      // 新版本 Service Worker 接管后自动刷新一次，保证总是展示最新版本
+      var refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+    });
+  }
+</script>
+</body>
+</html>

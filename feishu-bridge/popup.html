@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  body{width:290px;padding:14px;font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#F7F5F0;color:#2C3E3B;margin:0}
+  h3{margin:0 0 4px;font-size:14px}
+  .sub{font-size:11px;color:#8A9A96;line-height:1.6;margin-bottom:10px}
+  .row{background:#fff;border-radius:12px;padding:10px;font-size:12px;margin-bottom:8px;line-height:1.8}
+  button{width:100%;padding:9px;border:none;border-radius:11px;background:#5FC9BE;color:#fff;font-size:13px;cursor:pointer;margin-bottom:6px}
+  button.ghost{background:#fff;color:#3FA79C;border:1px solid #CDEAE6}
+  .tip{font-size:11px;color:#8A9A96;line-height:1.6;margin-top:6px}
+</style>
+</head>
+<body>
+<h3>飞书表格 → 秋招工作台</h3>
+<p class="sub">复用本机已登录的飞书账号，自动抓取 27 届秋招/春招/实习汇总表，同步到本地工作台</p>
+<div class="row" id="state">读取中…</div>
+<button id="sync">立即抓取表格</button>
+<button id="push" class="ghost">应用到已打开的工作台</button>
+<button id="copy" class="ghost">复制诊断信息</button>
+<p class="tip">抓取时会在后台静默打开一次表格页（约 25 秒）；若失败会自动切换到前台再试一次（约 30 秒，会短暂切屏）。抓不到时点「复制诊断信息」发给开发者即可定位原因。</p>
+<script src="popup.js"></script>
+</body>
+</html>
