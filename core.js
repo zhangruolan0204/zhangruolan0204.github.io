@@ -559,14 +559,25 @@
   };
 
   /* 统一文件导入入口：.xlsx/.xls/.xlsb 走 Excel 解析，其余按文本解析 */
+  /* 按需懒加载 SheetJS（避免 881KB 大文件阻塞首页/登录加载） */
+  function ensureXLSX(cb) {
+    if (typeof XLSX !== 'undefined') return cb();
+    QZ.toast('正在加载 Excel 解析组件…');
+    var s = document.createElement('script');
+    s.src = 'vendor/xlsx.full.min.js?v=20';
+    s.onload = cb;
+    s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
+    document.head.appendChild(s);
+  }
+
   QZ.importFileObject = function (file) {
     if (!file) return;
     var name = file.name || '文件';
     var lower = name.toLowerCase();
     if (/\.(xlsx|xlsm|xlsb|xls)$/.test(lower)) {
-      if (typeof XLSX === 'undefined') { QZ.toast('Excel 解析组件未加载，请刷新页面后重试'); return; }
-      QZ.toast('正在解析 Excel…');
-      var fr = new FileReader();
+      ensureXLSX(function () {
+        QZ.toast('正在解析 Excel…');
+        var fr = new FileReader();
       fr.onload = function (e) {
         try {
           var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
@@ -592,6 +603,7 @@
       };
       fr.readAsArrayBuffer(file);
       return;
+    });
     }
     var reader = new FileReader();
     reader.onload = function () { QZ.runSync({ text: reader.result, from: '文件导入：' + name }); };
@@ -694,6 +706,13 @@
     QZ.maybeAutoSync();   // 每日首次登录自动同步飞书表格
   }
 
+  /* 登录提交：由表单 onsubmit 内联调用，避免脚本未就绪时表单回退刷新 */
+  QZ.loginSubmit = function (e) {
+    if (e && e.preventDefault) e.preventDefault();
+    doLogin(document.getElementById('loginUser').value.trim(), document.getElementById('loginPass').value);
+    return false;
+  };
+
   /* ---------------- 启动 ---------------- */
   QZ.act = function (a, id, extra) {
     var f = QZ.actions[a];
@@ -705,10 +724,7 @@
     QZ.load();
     document.getElementById('loginIcon').innerHTML = QZ.shin('cap', 64);
     document.getElementById('brandIcon').innerHTML = QZ.shin('cap', 40);
-    document.getElementById('loginForm').addEventListener('submit', function (e) {
-      e.preventDefault();
-      doLogin(document.getElementById('loginUser').value.trim(), document.getElementById('loginPass').value);
-    });
+    // 登录提交改由表单内联 onsubmit 调用 QZ.loginSubmit，去掉此处重复监听，避免重复登录
     document.getElementById('logoutBtn').addEventListener('click', function () {
       QZ.user = null;
       try { sessionStorage.removeItem(SESSION); } catch (e) { }

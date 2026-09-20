@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="秋招工作台">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=19">
+<link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
 
@@ -24,7 +24,7 @@
     <div class="login-head" id="loginIcon"></div>
     <h1 class="login-title">2027 秋招管理工作台</h1>
     <p class="login-sub">电子信息类主攻 · 软件测试等转行方向兼容 · 全站密码保护</p>
-    <form id="loginForm" autocomplete="off">
+    <form id="loginForm" autocomplete="off" onsubmit="return (window.QZ && QZ.loginSubmit) ? QZ.loginSubmit(event) : false;">
       <label class="field">
         <span class="field-label">登录账号</span>
         <input id="loginUser" type="text" placeholder="请输入账号" value="admin" autocomplete="username">
@@ -87,10 +87,9 @@
 <div id="toast" class="toast"></div>
 <button id="installBtn" class="install-btn hidden">添加到手机主屏幕</button>
 
-<script src="vendor/xlsx.full.min.js?v=19"></script>
-<script src="data.js?v=19"></script>
-<script src="core.js?v=19"></script>
-<script src="pages.js?v=19"></script>
+<script src="data.js?v=20" defer></script>
+<script src="core.js?v=20" defer></script>
+<script src="pages.js?v=20" defer></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
