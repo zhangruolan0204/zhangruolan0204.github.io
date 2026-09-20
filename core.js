@@ -219,13 +219,23 @@
     try { window.scrollTo(0, 0); } catch (e) { }
   };
 
+  /* 菜单点击入口（内联 onclick 走这条），打标记避免与事件委托重复渲染一次 */
+  QZ.navGo = function (e, id) {
+    if (e) {
+      if (e.preventDefault) { try { e.preventDefault(); } catch (err) { } }
+      e.__qzNav = 1;
+    }
+    QZ.go(id);
+    return false;
+  };
+
   QZ.render = function () {
     if (!QZ.user) return;
     var nav = document.getElementById('nav');
     nav.innerHTML = QZ.pages.map(function (p) {
       var badge = p.badge ? p.badge() : '';
-      /* 用 data-page + 事件委托，替代内联 onclick：避免动态重渲染 / 移动端触摸导致点击失效 */
-      return '<button class="nav-item' + (p.id === QZ.page ? ' active' : '') + '" data-page="' + p.id + '">' +
+      /* 双保险：内联 onclick + data-page 事件委托，任一可用都能切换模块 */
+      return '<button class="nav-item' + (p.id === QZ.page ? ' active' : '') + '" data-page="' + p.id + '" onclick="QZ.navGo(event,\'' + p.id + '\')">' +
         QZ.shin(p.icon, 34) +
         '<span class="nav-text"><strong>' + p.name + '</strong><span>' + p.sub + '</span></span>' +
         (badge ? '<span class="nav-badge">' + badge + '</span>' : '') + '</button>';
@@ -569,7 +579,7 @@
     if (typeof XLSX !== 'undefined') return cb();
     QZ.toast('正在加载 Excel 解析组件…');
     var s = document.createElement('script');
-    s.src = 'vendor/xlsx.full.min.js?v=21';
+    s.src = 'vendor/xlsx.full.min.js?v=22';
     s.onload = cb;
     s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
     document.head.appendChild(s);
@@ -746,6 +756,7 @@
     });
     /* 侧边栏菜单切换：事件委托（点图标 / 文字 / 徽标都能命中，兼容移动端触摸点击） */
     document.getElementById('nav').addEventListener('click', function (e) {
+      if (e && e.__qzNav) return;   // 已被按钮上的内联 onclick 处理，避免重复渲染
       var t = e.target;
       while (t && t !== this) {
         if (t.classList && t.classList.contains('nav-item')) {

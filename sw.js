@@ -1,5 +1,5 @@
 /* 秋招工作台 Service Worker · 网络优先，断网兜底 */
-var CACHE = 'qz2027-v21';
+var CACHE = 'qz2027-v22';
 var ASSETS = [
   './',
   './index.html',
@@ -8,7 +8,7 @@ var ASSETS = [
   './data.js',
   './core.js',
   './pages.js',
-  './vendor/xlsx.full.min.js?v=21',
+  './vendor/xlsx.full.min.js?v=22',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -33,6 +33,23 @@ self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
   var url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return; // 飞书等跨域请求不拦截
+
+  /* 页面导航（HTML）：强制绕过浏览器 HTTP 缓存，保证永远拿到站点最新版本 */
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request, { cache: 'reload' }).then(function (res) {
+        if (res && res.status === 200) {
+          var c2 = res.clone();
+          caches.open(CACHE).then(function (c) { c.put('./index.html', c2); });
+        }
+        return res;
+      }).catch(function () {
+        return caches.match('./index.html');
+      })
+    );
+    return;
+  }
+
   e.respondWith(
     fetch(e.request).then(function (res) {
       if (res && res.status === 200) {
