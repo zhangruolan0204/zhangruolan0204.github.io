@@ -208,12 +208,8 @@
   };
 
   /* ---------------- 路由与渲染 ---------------- */
-  var _goLock = { id: '', t: 0 };
   QZ.go = function (id, fromHash) {
     if (!id) return;
-    var now = Date.now();
-    if (_goLock.id === id && (now - _goLock.t) < 300) return;  // 同一模块 300ms 内只渲染一次（防止多保险重复渲染）
-    _goLock.id = id; _goLock.t = now;
     QZ.page = id;
     /* 同步 URL hash，让地址栏反映当前模块（也支持刷新/分享直连） */
     if (!fromHash) {
@@ -241,7 +237,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 诊断胶囊：显示实际运行的版本与模块数，出错时显示错误原文 */
-  QZ.VERSION = 'v23';
+  QZ.VERSION = 'v24';
   function paintDiag(txt, bad) {
     try {
       var d = document.getElementById('diag');
@@ -249,7 +245,7 @@
       if (bad) { QZ.__bad = 1; d.className = 'diag-pill bad'; d.textContent = txt; d.style.display = 'block'; return; }
       if (QZ.__bad) return;
       d.className = 'diag-pill';
-      d.textContent = QZ.VERSION + ' · 模块 ' + QZ.pages.length + (txt ? ' · ' + txt : '');
+      d.textContent = QZ.VERSION + ' · 当前 ' + QZ.page + ' · ' + QZ.pages.length + ' 模块' + (txt ? ' · ' + txt : '');
       d.style.display = 'block';
     } catch (e) { }
   }
@@ -257,6 +253,7 @@
 
   /* 菜单点击入口（内联 onclick 走这条），打标记避免与事件委托重复渲染一次 */
   QZ.navGo = function (e, id) {
+    if (e && e.__qzNav) return false;   // 捕获阶段已处理，避免重复渲染
     if (e) {
       if (e.preventDefault) { try { e.preventDefault(); } catch (err) { } }
       e.__qzNav = 1;
@@ -267,35 +264,38 @@
 
   QZ.render = function () {
     if (!QZ.user) return;
+    try { renderInner(); }
+    catch (err) { paintDiag('渲染崩溃：' + String((err && err.message) || err), true); }
+  };
+
+  function renderInner() {
     var nav = document.getElementById('nav');
-    nav.innerHTML = QZ.pages.map(function (p) {
-      var badge = p.badge ? p.badge() : '';
-      /* 四重保险：①锚点 href（原生点击必改 hash）②内联 onclick ③#nav 事件委托 ④渲染后逐项绑定 */
-      return '<a class="nav-item' + (p.id === QZ.page ? ' active' : '') + '" href="#/' + p.id + '" data-page="' + p.id + '" onclick="return QZ.navGo(event,\'' + p.id + '\')">' +
-        QZ.shin(p.icon, 34) +
-        '<span class="nav-text"><strong>' + p.name + '</strong><span>' + p.sub + '</span></span>' +
-        (badge ? '<span class="nav-badge">' + badge + '</span>' : '') + '</a>';
-    }).join('');
+    /* 菜单只构建一次，之后仅切换高亮 / 更新角标。
+       关键：不再每次渲染都重建 innerHTML —— 否则「正在点击的按钮被替换掉」会导致 click 事件丢失 */
+    if (nav.getAttribute('data-built') !== String(QZ.pages.length)) {
+      nav.innerHTML = QZ.pages.map(function (p) {
+        /* 四重保险：①锚点 href ②内联 onclick ③document 捕获监听 ④#nav 事件委托 */
+        return '<a class="nav-item" href="#/' + p.id + '" data-page="' + p.id + '" onclick="return QZ.navGo(event,\'' + p.id + '\')">' +
+          QZ.shin(p.icon, 34) +
+          '<span class="nav-text"><strong>' + p.name + '</strong><span>' + p.sub + '</span></span>' +
+          '<span class="nav-badge" style="display:none"></span></a>';
+      }).join('');
+      nav.setAttribute('data-built', String(QZ.pages.length));
+    }
+    var items = nav.querySelectorAll('.nav-item');
+    for (var ai = 0; ai < items.length; ai++) {
+      var it = items[ai];
+      var pid = it.getAttribute('data-page');
+      if (pid === QZ.page) it.classList.add('active'); else it.classList.remove('active');
+      var def = null;
+      for (var di = 0; di < QZ.pages.length; di++) { if (QZ.pages[di].id === pid) { def = QZ.pages[di]; break; } }
+      var txt = '';
+      if (def && def.badge) { try { txt = String(def.badge() || ''); } catch (e2) { txt = ''; } }
+      var bd = it.querySelector ? it.querySelector('.nav-badge') : null;
+      if (bd) { bd.textContent = txt; bd.style.display = txt ? '' : 'none'; }
+    }
 
-    /* 保险④：渲染后给每个菜单项直接绑事件（防止重渲染/委托失效） */
-    try {
-      var btns = nav.querySelectorAll('.nav-item');
-      for (var bi = 0; bi < btns.length; bi++) {
-        (function (btn) {
-          if (btn.__qzBound) return;
-          btn.__qzBound = 1;
-          btn.addEventListener('click', function (e) {
-            if (e && e.__qzNav) return;            // 内联 onclick 已处理
-            var pid = btn.getAttribute('data-page');
-            if (!pid) return;
-            if (e && e.preventDefault) { try { e.preventDefault(); } catch (err) { } }
-            QZ.go(pid);
-          });
-        })(btns[bi]);
-      }
-    } catch (e) { }
-
-    if (!QZ.page && QZ.pages[0]) QZ.page = QZ.pages[0].id;   // 首次进入默认高亮第一个模块
+    var u = QZ.user;    if (!QZ.page && QZ.pages[0]) QZ.page = QZ.pages[0].id;   // 首次进入默认高亮第一个模块
     var p = QZ.pages.filter(function (x) { return x.id === QZ.page; })[0] || QZ.pages[0];
     document.getElementById('pageTitle').textContent = p.name;
     document.getElementById('pageDesc').textContent = p.sub;
@@ -318,7 +318,7 @@
     var fs = document.getElementById('footSync');
     if (fs) fs.textContent = QZ.data.sync.lastSync ? '最近同步：' + QZ.data.sync.lastSync : '尚未同步飞书文档';
     paintDiag('');
-  };
+  }
 
   /* ---------------- 飞书多维表格同步引擎 ---------------- */
   var DEFAULT_SOURCE = 'https://yal2at57cvq.feishu.cn/base/GtSLbyyR3aCENOsJYC6cdlsVnih?table=tblH4au5rnBcqHgJ&view=vew8PFC7nG';
@@ -641,7 +641,7 @@
     if (typeof XLSX !== 'undefined') return cb();
     QZ.toast('正在加载 Excel 解析组件…');
     var s = document.createElement('script');
-    s.src = 'vendor/xlsx.full.min.js?v=23';
+    s.src = 'vendor/xlsx.full.min.js?v=24';
     s.onload = cb;
     s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
     document.head.appendChild(s);
@@ -818,6 +818,19 @@
       sc.style.display = sb.classList.contains('open') ? 'block' : 'none';
     });
     /* 侧边栏菜单切换：事件委托（点图标 / 文字 / 徽标都能命中，兼容移动端触摸点击） */
+    /* 保险③：document 捕获阶段监听 —— 最先触发，任何 stopPropagation / 重渲染都无法绕过 */
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      while (t && t !== document) {
+        if (t.getAttribute && t.getAttribute('data-page')) {
+          e.__qzNav = 1;
+          if (e.preventDefault) { try { e.preventDefault(); } catch (err) { } }
+          QZ.go(t.getAttribute('data-page'));
+          return;
+        }
+        t = t.parentNode;
+      }
+    }, true);
     document.getElementById('nav').addEventListener('click', function (e) {
       if (e && e.__qzNav) return;   // 已被按钮上的内联 onclick 处理，避免重复渲染
       var t = e.target;
