@@ -208,9 +208,17 @@
   };
 
   /* ---------------- 路由与渲染 ---------------- */
-  QZ.go = function (id) {
+  var _goLock = { id: '', t: 0 };
+  QZ.go = function (id, fromHash) {
     if (!id) return;
+    var now = Date.now();
+    if (_goLock.id === id && (now - _goLock.t) < 300) return;  // 同一模块 300ms 内只渲染一次（防止多保险重复渲染）
+    _goLock.id = id; _goLock.t = now;
     QZ.page = id;
+    /* 同步 URL hash，让地址栏反映当前模块（也支持刷新/分享直连） */
+    if (!fromHash) {
+      try { if (location.hash !== '#/' + id) location.hash = '#/' + id; } catch (e) { }
+    }
     try {
       document.getElementById('sidebar').classList.remove('open');
       document.getElementById('scrim').style.display = 'none';
@@ -218,6 +226,34 @@
     QZ.render();
     try { window.scrollTo(0, 0); } catch (e) { }
   };
+
+  /* 保险①：URL hash 变化即切换 —— 锚点跳转是浏览器原生行为，不依赖任何 JS 事件绑定 */
+  function syncFromHash() {
+    try {
+      var h = String(location.hash || '').replace(/^#\/?/, '').split('?')[0];
+      if (!h || !QZ.user || h === QZ.page) return;
+      for (var i = 0; i < QZ.pages.length; i++) {
+        if (QZ.pages[i].id === h) { QZ.go(h, true); return; }
+      }
+    } catch (e) { }
+  }
+  window.addEventListener('hashchange', syncFromHash);
+  QZ.syncFromHash = syncFromHash;
+
+  /* 诊断胶囊：显示实际运行的版本与模块数，出错时显示错误原文 */
+  QZ.VERSION = 'v23';
+  function paintDiag(txt, bad) {
+    try {
+      var d = document.getElementById('diag');
+      if (!d) return;
+      if (bad) { QZ.__bad = 1; d.className = 'diag-pill bad'; d.textContent = txt; d.style.display = 'block'; return; }
+      if (QZ.__bad) return;
+      d.className = 'diag-pill';
+      d.textContent = QZ.VERSION + ' · 模块 ' + QZ.pages.length + (txt ? ' · ' + txt : '');
+      d.style.display = 'block';
+    } catch (e) { }
+  }
+  QZ.paintDiag = paintDiag;
 
   /* 菜单点击入口（内联 onclick 走这条），打标记避免与事件委托重复渲染一次 */
   QZ.navGo = function (e, id) {
@@ -234,18 +270,43 @@
     var nav = document.getElementById('nav');
     nav.innerHTML = QZ.pages.map(function (p) {
       var badge = p.badge ? p.badge() : '';
-      /* 双保险：内联 onclick + data-page 事件委托，任一可用都能切换模块 */
-      return '<button class="nav-item' + (p.id === QZ.page ? ' active' : '') + '" data-page="' + p.id + '" onclick="QZ.navGo(event,\'' + p.id + '\')">' +
+      /* 四重保险：①锚点 href（原生点击必改 hash）②内联 onclick ③#nav 事件委托 ④渲染后逐项绑定 */
+      return '<a class="nav-item' + (p.id === QZ.page ? ' active' : '') + '" href="#/' + p.id + '" data-page="' + p.id + '" onclick="return QZ.navGo(event,\'' + p.id + '\')">' +
         QZ.shin(p.icon, 34) +
         '<span class="nav-text"><strong>' + p.name + '</strong><span>' + p.sub + '</span></span>' +
-        (badge ? '<span class="nav-badge">' + badge + '</span>' : '') + '</button>';
+        (badge ? '<span class="nav-badge">' + badge + '</span>' : '') + '</a>';
     }).join('');
+
+    /* 保险④：渲染后给每个菜单项直接绑事件（防止重渲染/委托失效） */
+    try {
+      var btns = nav.querySelectorAll('.nav-item');
+      for (var bi = 0; bi < btns.length; bi++) {
+        (function (btn) {
+          if (btn.__qzBound) return;
+          btn.__qzBound = 1;
+          btn.addEventListener('click', function (e) {
+            if (e && e.__qzNav) return;            // 内联 onclick 已处理
+            var pid = btn.getAttribute('data-page');
+            if (!pid) return;
+            if (e && e.preventDefault) { try { e.preventDefault(); } catch (err) { } }
+            QZ.go(pid);
+          });
+        })(btns[bi]);
+      }
+    } catch (e) { }
 
     if (!QZ.page && QZ.pages[0]) QZ.page = QZ.pages[0].id;   // 首次进入默认高亮第一个模块
     var p = QZ.pages.filter(function (x) { return x.id === QZ.page; })[0] || QZ.pages[0];
     document.getElementById('pageTitle').textContent = p.name;
     document.getElementById('pageDesc').textContent = p.sub;
-    document.getElementById('content').innerHTML = p.render();
+    try {
+      document.getElementById('content').innerHTML = p.render();
+    } catch (err) {
+      document.getElementById('content').innerHTML =
+        '<div class="card"><h3>该模块渲染出错</h3><p>' +
+        QZ.esc(String((err && err.message) || err)) + '</p></div>';
+      paintDiag('渲染错误：' + String((err && err.message) || err), true);
+    }
 
     var u = QZ.user;
     document.getElementById('roleChip').innerHTML = QZ.tiny(u.role === 'admin' ? 'shield' : 'user', 14) +
@@ -256,6 +317,7 @@
       (u.role === 'admin' ? '超级管理员 · 全站可管理' : '普通账号 · 仅查看') + '</div></div>';
     var fs = document.getElementById('footSync');
     if (fs) fs.textContent = QZ.data.sync.lastSync ? '最近同步：' + QZ.data.sync.lastSync : '尚未同步飞书文档';
+    paintDiag('');
   };
 
   /* ---------------- 飞书多维表格同步引擎 ---------------- */
@@ -579,7 +641,7 @@
     if (typeof XLSX !== 'undefined') return cb();
     QZ.toast('正在加载 Excel 解析组件…');
     var s = document.createElement('script');
-    s.src = 'vendor/xlsx.full.min.js?v=22';
+    s.src = 'vendor/xlsx.full.min.js?v=23';
     s.onload = cb;
     s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
     document.head.appendChild(s);
@@ -719,6 +781,7 @@
     document.getElementById('app').classList.remove('hidden');
     QZ.render();
     QZ.maybeAutoSync();   // 每日首次登录自动同步飞书表格
+    try { QZ.syncFromHash(); } catch (e) { }   // 支持带 #/模块 的链接直达
   }
 
   /* 登录提交：由表单 onsubmit 内联调用，避免脚本未就绪时表单回退刷新 */

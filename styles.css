@@ -53,6 +53,21 @@ button,input,select,textarea{font-family:inherit;font-size:14px;color:inherit}
 .hidden{display:none !important}
 img,svg{display:block}
 
+/* 菜单项改为锚点后：去掉下划线、继承配色 */
+a.nav-item{text-decoration:none;color:var(--text-2)}
+a.nav-item:hover{text-decoration:none}
+a.nav-item.active{color:var(--teal-dark)}
+
+/* 常驻诊断胶囊：右下角显示版本号 / 错误原文 */
+.diag-pill{
+  display:none;position:fixed;right:12px;bottom:12px;z-index:9999;
+  max-width:78vw;word-break:break-all;
+  padding:6px 14px;border-radius:20px;font-size:12px;line-height:1.5;
+  color:#fff;background:rgba(95,201,190,.94);
+  box-shadow:0 6px 18px rgba(0,0,0,.18);pointer-events:none;
+}
+.diag-pill.bad{background:#ff4d4f}
+
 /* ---------------- 登录页 ---------------- */
 .login-screen{
   position:fixed;inset:0;z-index:100;
