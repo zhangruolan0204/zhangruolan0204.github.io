@@ -1,7 +1,10 @@
 /**
  * resume-parser.js
  * ------------------------------------------------------------
- * 简历文本 → 档案字段 的纯本地抽取引擎（v1.3.0）
+ * 简历文本 → 档案字段 的纯本地抽取引擎（v1.4.0）
+ *
+ * v1.4.0：支持全角竖线分隔、en dash 日期区间、专业名按最长匹配、
+ *         科研成果/荣誉段落、QQ 号从 QQ 邮箱推断、期望岗位截断修正
  *
  * 设计原则：
  *  1. 完全本地运行，不联网、不上传任何内容
@@ -14,14 +17,17 @@
 (function (root) {
   'use strict';
 
-  const P = { version: '1.3.0' };
+  const P = { version: '1.4.0' };
 
   /* ---------------- 基础工具 ---------------- */
 
-  function flat(t) { return String(t || '').replace(/\r/g, '').replace(/[ \t\u00a0]+/g, ' '); }
+  /** 去掉 PDF 复制出来的项目符号等私用区字符 */
+  function debullet(s) { return String(s || '').replace(/[\uF0B7\uF0A7\uF06C\uF0D8\u25CF\u25AA\u25A0]/g, ''); }
+
+  function flat(t) { return debullet(String(t || '')).replace(/\r/g, '').replace(/[ \t\u00a0]+/g, ' '); }
 
   function lines(t) {
-    return String(t || '').replace(/\r/g, '').split('\n').map(s => s.trim()).filter(Boolean);
+    return debullet(String(t || '')).replace(/\r/g, '').split('\n').map(s => s.trim()).filter(Boolean);
   }
 
   /** 就近取值：取关键词所在行、关键词之后的第一段（遇到 2 个以上空格或竖线即停） */
@@ -32,7 +38,7 @@
     let seg = t.slice(m.index + m[0].length);
     const nl = seg.indexOf('\n');
     if (nl >= 0) seg = seg.slice(0, nl);
-    seg = seg.split(/\s{2,}|\s*\|\s*/)[0];
+    seg = seg.split(/\s{2,}|\s*[|｜]\s*/)[0];
     seg = cutNextField(seg);
     let v;
     try { v = seg.match(valRe); } catch (e) { return ''; }
@@ -66,8 +72,15 @@
     '会计学', '财务管理', '金融学', '国际经济与贸易', '市场营销', '工商管理', '人力资源管理',
     '行政管理', '法学', '汉语言文学', '新闻学', '广告学', '英语', '日语', '数学与应用数学',
     '统计学', '应用统计学', '物理学', '化学', '生物科学', '药学', '临床医学', '护理学',
-    '材料科学与工程', '化学工程与工艺', '环境工程', '食品科学与工程', '工业设计', '视觉传达设计'
+    '材料科学与工程', '化学工程与工艺', '环境工程', '食品科学与工程', '工业设计', '视觉传达设计',
+    '智能科学与技术', '机器人工程', '空间信息与数字技术', '数字媒体技术', '网络空间安全',
+    '微电子科学与工程', '光电信息科学与工程', '集成电路设计与集成系统', '智能装备与系统',
+    '电子信息科学与技术', '信息与计算科学', '应用化学', '电子商务', '物流管理', '旅游管理',
+    '审计学', '国际商务', '保险学', '投资学', '数字经济', '金融科技', '智能制造工程',
+    '新能源汽车工程', '航空航天工程', '生物医学工程', '制药工程', '园林', '产品设计'
   ];
+  /** 按名称长度降序匹配，避免「智能科学与技术」被「人工智能」抢先命中 */
+  const MAJOR_ORDER = MAJOR_HINT.slice().sort((a, b) => b.length - a.length);
 
   /* ---------------- 字段抽取 ---------------- */
 
@@ -112,7 +125,7 @@
   function pickMajor(t, ls) {
     let v = near(t, /(?:所学专业|专业名称|专业)[：:]\s*/, /([^\n，,；;。|]{2,30})/);
     if (v && !/技能|排名|课程|证书|方向/.test(v)) return clean(v, 30);
-    for (const mj of MAJOR_HINT) if (t.indexOf(mj) >= 0) return mj;
+    for (const mj of MAJOR_ORDER) if (t.indexOf(mj) >= 0) return mj;
     return '';
   }
 
@@ -126,13 +139,14 @@
 
   function pickEduRange(t) {
     const out = {};
-    let m = t.match(/(20\d{2})\s*[.\-\/年]\s*(0?[1-9]|1[0-2])\s*月?\s*[-~—至到]\s*(20\d{2})\s*[.\-\/年]\s*(0?[1-9]|1[0-2])/);
+    const DASH = '[-\\u2010\\u2013\\u2014\\u2015~—－至到]';
+    let m = t.match(new RegExp('(20\\d{2})\\s*[.\\-\\/年]\\s*(0?[1-9]|1[0-2])\\s*月?\\s*' + DASH + '\\s*(20\\d{2})\\s*[.\\-\\/年]\\s*(0?[1-9]|1[0-2])'));
     if (m) {
       out.educationStart = m[1] + '-' + ('0' + m[2]).slice(-2);
       out.graduationDate = m[3] + '-' + ('0' + m[4]).slice(-2);
       return out;
     }
-    m = t.match(/(20\d{2})\s*[.\-\/年]\s*(0?[1-9]|1[0-2])\s*月?\s*[-~—至到]\s*(?:(20\d{2})\s*[.\-\/年]\s*)?(0?[1-9]|1[0-2])/);
+    m = t.match(new RegExp('(20\\d{2})\\s*[.\\-\\/年]\\s*(0?[1-9]|1[0-2])\\s*月?\\s*' + DASH + '\\s*(?:(20\\d{2})\\s*[.\\-\\/年]\\s*)?(0?[1-9]|1[0-2])'));
     if (m) {
       out.educationStart = m[1] + '-' + ('0' + m[2]).slice(-2);
       out.graduationDate = (m[3] || m[1]) + '-' + ('0' + m[4]).slice(-2);
@@ -140,6 +154,14 @@
     }
     let g = near(t, /(?:毕业时间|毕业年份|预计毕业)[：:\s]*/, /((?:20\d{2})\s*[.\-\/年]\s*(?:0?[1-9]|1[0-2])?)/);
     if (g) out.graduationDate = g.replace(/[年\/.]/g, '-').replace(/-$/, '').replace(/-(\d)$/, '-0$1');
+    if (!out.graduationDate) {
+      const j = t.match(/(20\d{2})\s*届/);          /* 「2027 届」→ 2027-06 */
+      if (j) out.graduationDate = j[1] + '-06';
+    }
+    if (!out.educationStart && out.graduationDate) {
+      const y = parseInt(out.graduationDate.slice(0, 4), 10) - (/硕士|研究生/.test(t) ? 3 : 4);
+      if (y > 1990) out.educationStart = y + '-09';
+    }
     return out;
   }
 
@@ -231,6 +253,10 @@
 
       put('wechat', near(t, /(?:微信|WeChat|wechat)[号：:\s]*/, /([A-Za-z][\w-]{4,19})/));
       put('qq', near(t, /(?:QQ|qq|Q\s*Q)[号：:\s]*/, /(\d{5,12})/));
+      if (!out.qq && /@qq\.com$/i.test(email)) {          /* 123456@qq.com → QQ 号 */
+        const p = (email.split('@')[0] || '');
+        if (/^\d{5,12}$/.test(p)) out.qq = p;
+      }
       put('address', near(t, /(?:现居(?:住)?(?:地址)?|通讯地址|居住地址|家庭住址|住址|地址)[：:\s]*/, /([^\n，,；;。|]{4,50})/));
       put('postalCode', near(t, /(?:邮编|邮政编码)[：:\s]*/, /(\d{6})/));
       put('homepage', (t.match(/https?:\/\/(?:github\.com|gitee\.com|juejin\.cn|blog\.csdn\.net|zhihu\.com|[\w.-]+\.(?:com|cn|io|me|net))\/[\w.\/-]*/) || [])[0] || '');
@@ -262,7 +288,8 @@
         if (sc) put('cetScore', (/6|六/.test(eng) ? '六级 ' : '四级 ') + sc[1] + ' 分');
       }
 
-      put('expectedPosition', near(t, /(?:应聘岗位|意向岗位|求职意向|目标岗位|期望(?:职位|岗位)|申请岗位)[：:\s]*/, /([^\n，,；;。|]{2,25})/));
+      let ep = near(t, /(?:应聘岗位|意向岗位|求职意向|目标岗位|期望(?:职位|岗位)|申请岗位)[：:\s]*/, /([^\n，,；;。|]{2,40})/);
+      if (ep) put('expectedPosition', clean(ep.split(/\s*[·•]\s*/)[0], 40));
       put('expectedCity', near(t, /(?:期望城市|意向城市|期望工作(?:城市|地点)|工作地点|意向工作地)[：:\s]*/, /([^\n，,；;。|]{2,25})/));
       put('expectedSalary', near(t, /(?:期望薪资|期望薪酬|薪资要求)[：:\s]*/, /([^\n，,；;。|]{1,20})/));
       put('internTime', near(t, /(?:可实习时间|实习时长|可到岗时间|到岗时间)[：:\s]*/, /([^\n，,；;。|]{2,30})/));
@@ -272,9 +299,18 @@
       put('skills', section(ls, ['专业技能', '核心技能', '技能特长', '技能清单', '技能'], 1200));
       put('projectExperience', section(ls, ['项目经历', '项目经验', '项目'], 1800));
       put('internship', section(ls, ['实习经历', '工作经历', '实习经验', '工作经验'], 1500));
-      put('awards', section(ls, ['获奖情况', '荣誉奖项', '获奖荣誉', '奖项荣誉', '所获荣誉', '获奖'], 1000));
+      put('awards', section(ls, ['获奖情况', '荣誉奖项', '获奖荣誉', '奖项荣誉', '所获荣誉', '科研成果', '学术成果', '论文专利', '获奖'], 1000));
       put('schoolExperience', section(ls, ['校园经历', '学生工作', '社团经历', '校内经历'], 1000));
-      put('selfEvaluation', section(ls, ['自我评价', '个人评价', '个人总结', '自我评价与总结'], 1200));
+      let se = section(ls, ['自我评价', '个人评价', '个人总结', '自我评价与总结'], 1200);
+      if (!se) {                                   /* 没有单独段落时，取开头那句个人简介 */
+        for (let i = 0; i < Math.min(5, ls.length); i++) {
+          const s = ls[i];
+          if (s.length < 25) continue;
+          if (/@|电话|手机|邮箱|求职意向|教育背景|项目经历|实习经历|专业技能/.test(s)) continue;
+          se = s; break;
+        }
+      }
+      put('selfEvaluation', se);
     } catch (e) {
       /* 单字段失败不影响整体 */
     }
