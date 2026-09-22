@@ -237,7 +237,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v34';
+  QZ.VERSION = 'v35';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -1121,8 +1121,12 @@
     h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
       '<b style="font-size:14px">适配总分</b>' + fitLevelChip(rec.level) +
       '<span class="chip ' + (rec.mode === 'ai' ? 'blue' : 'gray') + '">' + (rec.mode === 'ai' ? 'AI 深度分析' : '离线关键词分析') + '</span>' +
+      (rec.quality === 'weak' ? '<span class="chip yellow">JD 不全 · 方向级粗估</span>' : '<span class="chip green">JD 完整</span>') +
+      (rec.track ? '<span class="chip gray">' + QZ.esc(rec.track) + '</span>' : '') +
+      (rec.reqCount ? '<span class="chip gray">命中 ' + rec.hitCount + '/' + rec.reqCount + ' 项</span>' : '') +
       '<span class="chip gray">' + QZ.esc(rec.tsText || '') + '</span></div>';
     h += fitScoreBar(rec.score);
+    if (rec.slim) h += '<div class="note yellow" style="margin-top:6px">这是<b>批量分析</b>生成的精简记录（只保留 3 条亮点 / 短板 / 建议）。想要完整版，就在上面的模式选择里点「开始适配分析」重新跑一次。</div>';
     if (rec.note) h += '<div class="note" style="margin-top:6px">' + QZ.esc(rec.note) + '</div>';
 
     if (rec.plain && rec.plain.text) {
@@ -1189,6 +1193,8 @@
         (cfg.key && cfg.on !== false ? 'AI 深度分析可用' : '离线兜底模式可用') + '</span>' +
         '<button class="btn btn-ghost btn-sm" onclick="QZ.closeModal();QZ.go(\'settings\')">补全简历档案</button></div>' +
         (filled < 4 ? '<div class="note" style="margin-bottom:8px">简历档案内容太少，分析结果会偏保守。建议先到设置中心用「从简历自动识别」或「导入档案 JSON」把档案填好。</div>' : '') +
+        (window.FitAnalyzer && window.FitAnalyzer.jdQuality(jdText, job) === 'weak'
+          ? '<div class="note yellow" style="margin-bottom:8px">这条岗位<b>没有录入 JD</b>，下面是系统按岗位名称生成的方向级草稿。粘贴真实 JD 后点「保存 JD」再分析，分数才精确到具体能力项；没 JD 时不会判「不匹配」，只会给方向级粗估。</div>' : '') +
         '<div style="font-size:12.5px;color:var(--text-2);margin-bottom:4px">岗位 JD（可手动修改，改完点「保存 JD」）</div>' +
         '<textarea id="fitJd" rows="7" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:12px;background:#FCFBF8;font-size:12.5px;line-height:1.6">' + QZ.esc(jdText) + '</textarea>' +
         '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">' +
@@ -1247,6 +1253,7 @@
       var jd = job.jd || A.jdDraft(job);
       if (!String(rt).trim()) { QZ.toast('简历档案是空的，先到设置中心填写'); return; }
       QZ.toast('分析中…');
+      A.profile = jafProfile();        /* 供「专业对口」判定使用 */
       A.analyze(rt, jd, job, aiCfg(), mode || 'auto').then(function (r) {
         var rec = r.data || {};
         var d = new Date();
@@ -1265,6 +1272,63 @@
         QZ.toast('分析失败：' + ((e && e.message) || '未知错误'));
       });
     } catch (e) { QZ.toast('分析失败：' + e.message); }
+  };
+
+  /** 批量离线分析：对岗位页当前筛选出的岗位一次性跑离线分析（精简记录，节省本地空间） */
+  QZ.actions.jobFitBatch = function () {
+    try {
+      var A = window.FitAnalyzer;
+      if (!A || !A.offline) { QZ.toast('分析组件未加载，请刷新页面重试'); return; }
+      var pf = jafProfile();
+      var filled = Object.keys(pf).filter(function (k) { return String(pf[k] || '').trim(); }).length;
+      if (filled < 3) { QZ.toast('简历档案内容太少，先到设置中心填好再批量分析'); return; }
+      var list = QZ._jobsView || QZ.data.jobs || [];
+      if (!list.length) { QZ.toast('没有可分析的岗位'); return; }
+      QZ.toast('正在批量分析 ' + list.length + ' 条岗位…');
+      setTimeout(function () {
+        try {
+          A.profile = pf;
+          var rt = A.resumeText(pf);
+          var st = fitStore(), n = 0, t0 = Date.now();
+          var d = new Date(), pad = function (x) { return x < 10 ? '0' + x : '' + x; };
+          var cut = function (s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; };
+          var tsText = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+          list.forEach(function (job) {
+            try {
+              var r = A.offline(rt, job.jd || A.jdDraft(job), job);
+              var rec = {
+                mode: 'offline', slim: true, score: r.score, level: r.level,
+                quality: r.quality, track: r.track, reqCount: r.reqCount, hitCount: r.hitCount,
+                isNonIT: !!r.isNonIT, tsText: tsText, note: cut(r.note, 60),
+                highlights: (r.highlights || []).slice(0, 3).map(function (x) { return { title: x.title, evidence: cut(x.evidence, 60) }; }),
+                gaps: (r.gaps || []).slice(0, 3).map(function (x) { return { title: x.title, why: cut(x.why, 50) }; }),
+                advice: (r.advice || []).slice(0, 2).map(function (s) { return cut(s, 80); })
+              };
+              var arr = st[job.id] || [];
+              arr.unshift(rec);
+              st[job.id] = arr.slice(0, 5);
+              n++;
+            } catch (e) { }
+          });
+          QZ.save(); QZ.render();
+          QZ.toast('已批量分析 ' + n + ' 条（耗时 ' + ((Date.now() - t0) / 1000).toFixed(1) + 's），可用「适配分高→低」排序挑岗位');
+        } catch (e) { QZ.toast('批量分析失败：' + e.message); }
+      }, 30);
+    } catch (e) { QZ.toast('批量分析失败：' + e.message); }
+  };
+
+  /** 清空全部岗位分析报告（释放本地空间） */
+  QZ.actions.fitClear = function () {
+    try {
+      var st = fitStore();
+      var n = Object.keys(st).reduce(function (a, k) { return a + ((st[k] || []).length); }, 0);
+      if (!n) { QZ.toast('还没有任何分析报告'); return; }
+      if (!window.confirm('确定清空全部 ' + n + ' 份岗位分析报告吗？简历档案不会被清除，重新分析即可再生成。')) return;
+      QZ.data.fitReports = {};
+      QZ.fit.last = null;
+      QZ.save(); QZ.render();
+      QZ.toast('已清空 ' + n + ' 份分析报告');
+    } catch (e) { QZ.toast('清空失败：' + e.message); }
   };
 
   QZ.actions = QZ.actions || {};
