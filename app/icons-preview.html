@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图标风格预览 · 秋招工作台</title>
+<link rel="stylesheet" href="styles.css?v=25">
+<style>
+  body{padding:22px;background:var(--cream)}
+  h1{font-size:18px;margin-bottom:4px}
+  .sub{font-size:12.5px;color:var(--muted);margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px}
+  .ic{background:#fff;border-radius:16px;box-shadow:var(--shadow);padding:14px 8px;text-align:center}
+  .ic .name{font-size:11.5px;color:var(--text-2);margin-top:8px}
+  .ic .key{font-size:10px;color:var(--muted)}
+  .row{display:flex;gap:10px;align-items:center;background:#fff;border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:var(--shadow)}
+</style>
+</head>
+<body>
+<h1>原创手绘卡通图标 · 全站 40 个图标位</h1>
+<p class="sub">马卡龙低饱和配色 · 圆角 100% 圆润 · 块面饱满 · 线条柔和 · 无 IP 版权风险，可直接商用</p>
+
+<div id="bar"></div>
+<div class="grid" id="g"></div>
+
+<script src="data.js?v=25"></script>
+<script>
+  var labels = {
+    dashboard:'首页总览', job:'岗位投递库', exam:'笔试管理', interview:'面试管理', resume:'简历版本库',
+    question:'笔面试题库', offer:'Offer 对比表', todo:'日程待办', resource:'资源收藏夹', setting:'设置中心',
+    plus:'新增', edit:'编辑', trash:'删除', sync:'同步', link:'链接', clock:'时间', lock:'密码',
+    user:'账号', shield:'管理员', chart:'统计', filter:'筛选', download:'导出', upload:'导入',
+    check:'完成', star:'评分', calendar:'日程', pin:'地点', book:'资料', target:'目标', cloud:'云端',
+    phone:'手机/PWA', team:'内推/团队', flag:'标记', bell:'提醒', refresh:'刷新', doc:'文档',
+    wallet:'薪资', route:'转行路线', key:'权限', cap:'毕业/学位'
+  };
+  var keys = QZ_DATA.ICON_KEYS;
+  if (!QZ_DATA.artSvg) {
+    document.getElementById('g').innerHTML =
+      '<div style="grid-column:1/-1" class="empty">检测到浏览器缓存了旧版本：请按 <b>Ctrl + F5</b> 强制刷新一次即可看到最新图标（已修复自动更新机制，之后无需再手动强刷）</div>';
+  } else {
+  document.getElementById('g').innerHTML = keys.map(function (k) {
+    return '<div class="ic">' + QZ_DATA.artSvg(k, 56) +
+      '<div class="name">' + (labels[k] || k) + '</div><div class="key">' + k + '.png</div></div>';
+  }).join('');
+  }
+  document.getElementById('bar').innerHTML = '<div class="row">' +
+    [16, 24, 32, 42, 56].map(function (s) { return QZ_DATA.artSvg('dashboard', s); }).join('') +
+    '<span style="font-size:12.5px;color:var(--text-2)">多尺寸渲染一致性：16 / 24 / 32 / 42 / 56 px，圆角与描边保持等比柔和</span></div>';
+</script>
+</body>
+</html>
