@@ -1,0 +1,24 @@
+{
+  "name": "2027秋招管理工作台 · WorkBuddy",
+  "short_name": "秋招工作台",
+  "description": "2027届秋招专属管理工作台：岗位投递、笔试、面试、简历、题库、Offer对比、日程待办与资源收藏一站式管理",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#F7F5F0",
+  "theme_color": "#5FC9BE",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["productivity", "education"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "岗位投递库", "short_name": "投递库", "url": "./index.html#jobs", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "日程待办", "short_name": "待办", "url": "./index.html#todos", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
