@@ -236,15 +236,31 @@
   window.addEventListener('hashchange', syncFromHash);
   QZ.syncFromHash = syncFromHash;
 
-  /* 诊断胶囊：显示实际运行的版本与模块数，出错时显示错误原文 */
-  QZ.VERSION = 'v28';
+  /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
+  QZ.VERSION = 'v29';
+  QZ.hideVerbar = function () {
+    try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
+    var b = document.getElementById('verbar');
+    if (b) b.style.display = 'none';
+    return false;
+  };
   function paintDiag(txt, bad) {
-    var line = QZ.VERSION + ' · 当前 ' + QZ.page + ' · ' + QZ.pages.length + ' 模块' + (txt ? ' · ' + txt : '');
+    var line = QZ.VERSION + ' · ' + QZ.page + (txt ? ' · ' + txt : '');
     try {
       var vb = document.getElementById('verbarTxt');
       if (vb) vb.textContent = bad ? (QZ.VERSION + ' · 错误：' + txt) : line;
       var bar = document.getElementById('verbar');
-      if (bar && bad) bar.style.background = '#ff4d4f';
+      if (bar) {
+        if (bad) {
+          bar.className = 'verbar bad';
+          bar.style.display = 'flex';
+        } else {
+          bar.className = 'verbar';
+          var hidden = false;
+          try { hidden = localStorage.getItem('qz_verbar_hide') === QZ.VERSION; } catch (e) { }
+          bar.style.display = hidden ? 'none' : 'flex';
+        }
+      }
     } catch (e) { }
     try {
       var d = document.getElementById('diag');
@@ -673,7 +689,7 @@
     if (typeof XLSX !== 'undefined') return cb();
     QZ.toast('正在加载 Excel 解析组件…');
     var s = document.createElement('script');
-    s.src = 'vendor/xlsx.full.min.js?v=28';
+    s.src = 'vendor/xlsx.full.min.js?v=29';
     s.onload = cb;
     s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
     document.head.appendChild(s);
