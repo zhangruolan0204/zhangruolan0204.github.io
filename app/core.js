@@ -236,15 +236,31 @@
   window.addEventListener('hashchange', syncFromHash);
   QZ.syncFromHash = syncFromHash;
 
-  /* 诊断胶囊：显示实际运行的版本与模块数，出错时显示错误原文 */
-  QZ.VERSION = 'v27';
+  /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
+  QZ.VERSION = 'v29';
+  QZ.hideVerbar = function () {
+    try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
+    var b = document.getElementById('verbar');
+    if (b) b.style.display = 'none';
+    return false;
+  };
   function paintDiag(txt, bad) {
-    var line = QZ.VERSION + ' · 当前 ' + QZ.page + ' · ' + QZ.pages.length + ' 模块' + (txt ? ' · ' + txt : '');
+    var line = QZ.VERSION + ' · ' + QZ.page + (txt ? ' · ' + txt : '');
     try {
       var vb = document.getElementById('verbarTxt');
       if (vb) vb.textContent = bad ? (QZ.VERSION + ' · 错误：' + txt) : line;
       var bar = document.getElementById('verbar');
-      if (bar && bad) bar.style.background = '#ff4d4f';
+      if (bar) {
+        if (bad) {
+          bar.className = 'verbar bad';
+          bar.style.display = 'flex';
+        } else {
+          bar.className = 'verbar';
+          var hidden = false;
+          try { hidden = localStorage.getItem('qz_verbar_hide') === QZ.VERSION; } catch (e) { }
+          bar.style.display = hidden ? 'none' : 'flex';
+        }
+      }
     } catch (e) { }
     try {
       var d = document.getElementById('diag');
@@ -354,14 +370,14 @@
   /* 字段映射：飞书多维表格列名 → 工作台标准字段（中英文/常见别名全覆盖） */
   var FIELD_MAP = {
     company: ['company', '企业名称', '企业', '公司', '公司名称', '单位名称', '招聘企业', '公司/单位'],
-    position: ['position', '岗位名称', '岗位', '职位', '招聘职位', '岗位方向', '投递岗位'],
-    category: ['category', '岗位类别', '方向', '类别', '岗位类型', '投递方向', '岗位大类'],
+    position: ['position', '岗位名称', '岗位', '职位', '招聘职位', '岗位方向', '投递岗位', '招聘岗位'],
+    category: ['category', '岗位类别', '方向', '类别', '岗位类型', '投递方向', '岗位大类', '行业分类'],
     city: ['city', '工作地点', '城市', '地点', '工作城市', 'base', '所在城市'],
     status: ['status', '投递状态', '状态', '当前状态', '进度', '流程状态'],
-    channel: ['channel', '投递渠道', '渠道', '来源', '投递方式'],
+    channel: ['channel', '投递渠道', '渠道', '来源', '投递方式', '公告来源'],
     referrer: ['referrer', '内推人', '推荐人', '内推码', '内推', '内推链接'],
     link: ['link', '投递链接', '链接', '原文链接', '岗位链接', 'url', '详情链接'],
-    appliedAt: ['appliedAt', '投递时间', '投递日期', '日期', '开始时间', '开放时间'],
+    appliedAt: ['appliedAt', '投递时间', '投递日期', '日期', '开始时间', '开放时间', '更新时间'],
     deadline: ['deadline', '截止时间', '截止日期', '网申截止', '投递截止', 'Due', '结束时间'],
     salary: ['salary', '薪资', '薪酬', '待遇', '月薪', '工资'],
     remark: ['remark', '备注', '说明', '备注信息', '注意事项'],
@@ -501,13 +517,16 @@
   function mergeInto(ckey, rows, mode) {
     var list = QZ.data[ckey] || (QZ.data[ckey] = []);
     var added = 0, updated = 0;
+    /* 先对已有数据建哈希索引：万级数据导入时避免 O(n²) 全表扫描导致浏览器卡死 */
+    var index = {};
+    for (var i = 0; i < list.length; i++) {
+      var ik = itemKeyOf(ckey, list[i]);
+      if (index[ik] === undefined) index[ik] = list[i];
+    }
     rows.forEach(function (r) {
       if (!(r.company || r.position || r.title || r.name || r.examAt)) return;
       var key = itemKeyOf(ckey, r);
-      var exist = null;
-      for (var i = 0; i < list.length; i++) {
-        if (itemKeyOf(ckey, list[i]) === key) { exist = list[i]; break; }
-      }
+      var exist = index[key] || null;
       var item = buildItem(ckey, r);
       if (exist) {
         if (mode === 'overwrite') {
@@ -517,6 +536,7 @@
         }
       } else {
         list.push(item); added++;
+        if (index[key] === undefined) index[key] = item;
       }
     });
     return { added: added, updated: updated };
@@ -669,7 +689,7 @@
     if (typeof XLSX !== 'undefined') return cb();
     QZ.toast('正在加载 Excel 解析组件…');
     var s = document.createElement('script');
-    s.src = 'vendor/xlsx.full.min.js?v=27';
+    s.src = 'vendor/xlsx.full.min.js?v=29';
     s.onload = cb;
     s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
     document.head.appendChild(s);
