@@ -22,7 +22,7 @@
    —— 彻底解决浏览器一直执行旧脚本导致菜单点不动的问题（只执行一次，不会循环） */
 (function () {
   try {
-    var V = 'v27';
+    var V = 'v28';
     if (localStorage.getItem('qz_ver') !== V) {
       try { localStorage.setItem('qz_ver', V); } catch (e) { }
       if (window.caches && caches.keys) {
@@ -48,7 +48,7 @@
 
 <!-- 常驻版本条（屏幕正上方，蓝色长条）：一眼确认实际加载的版本 + 一键清缓存 -->
 <div id="verbar" class="verbar">
-  <span id="verbarTxt">秋招工作台 v27（若这行只有版本号、没有「当前模块」，说明 JS 未执行）</span>
+  <span id="verbarTxt">秋招工作台 v28（若这行只有版本号、没有「当前模块」，说明 JS 未执行）</span>
   <button class="verbar-btn" onclick="return (window.QZ && QZ.hardReset) ? QZ.hardReset() : location.reload();">清缓存重载</button>
 </div>
 
@@ -128,7 +128,7 @@
 function qzShowErr(msg) {
   if (window.QZ && QZ.paintDiag) { try { QZ.paintDiag(msg, true); } catch (e) { } }
   var vb = document.getElementById('verbarTxt'), bar = document.getElementById('verbar');
-  if (vb) vb.textContent = 'v27 · ' + msg;
+  if (vb) vb.textContent = 'v28 · ' + msg;
   if (bar) bar.style.background = '#ff4d4f';
   var d = document.getElementById('diag');
   if (d) { d.className = 'diag-pill bad'; d.style.display = 'block'; d.textContent = msg; }
