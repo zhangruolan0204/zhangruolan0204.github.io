@@ -995,6 +995,11 @@
             '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.jafParseResume(1)">只看识别结果</button>' +
             '</div>' +
             '<div id="jafParseOut" style="margin-top:8px">' + (QZ.jaf.lastParse || '') + '</div>' +
+            '<div class="note" style="margin-top:10px"><b>导入档案 JSON</b>：把已整理好的档案 JSON（助手生成的、或扩展导出的）整段粘进来 → 点「导入」。有值的字段直接写入，留空的字段<b>不会</b>清掉已有内容。先在工作台导入同一份档案，再点「同步档案到扩展」，两端就完全一致了。</div>' +
+            '<textarea id="jafImportJson" rows="3" placeholder="粘贴 {\"_type\":\"jaf-profile\",\"profile\":{...}} 或扩展导出的 JSON" style="width:100%;margin-top:8px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font-size:12.5px;line-height:1.6"></textarea>' +
+            '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">' +
+            '<button class="btn btn-soft btn-sm" onclick="QZ.actions.jafImportProfile()">导入档案 JSON</button>' +
+            '<span class="muted" style="font-size:12px">导入后记得核对姓名、手机、邮箱三项</span></div>' +
             '<div style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;flex-wrap:wrap">' +
             '<textarea id="jafWB" rows="2" placeholder="扩展未连接时的兜底：把扩展弹窗里的「回写串」粘贴到这里" style="flex:1 1 320px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font-size:12.5px"></textarea>' +
             '<button class="btn btn-soft btn-sm" onclick="QZ.actions.jafWriteback()">应用回写</button></div>' +
