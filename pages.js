@@ -897,12 +897,17 @@
         }))
     });
 
+    var iconMode = 'svg';
+    try { iconMode = QZ.iconMode(); } catch (e) { }
     var iconCard = QZ.card({
       icon: 'star', title: '图标风格与自定义资源', desc: '全站统一使用原创手绘卡通图标：马卡龙低饱和配色、圆角饱满、线条柔和，无 IP 版权风险、可直接商用',
-      tools: '<button class="btn btn-primary btn-sm" onclick="QZ.actions.checkIcons()">检测图标状态</button>',
-      body: '<div class="note teal">当前图标为<b>原创绘制</b>（非任何 IP 形象、非通用线性图标、非系统默认图标），共 40 个图标位，覆盖侧边栏入口、卡片、按钮、标签；风格统一：100% 圆角、块面饱满、低饱和马卡龙浅色系 + 柔和青灰描边，零版权风险，可直接商用。<br>如需替换为其他可商用开源图标库（如 OpenMoji / Twemoji 等 CC0 / MIT 授权资源），把图片按 <b>图标位.png</b> 命名放入 <b>assets/icons/</b>，刷新即全站生效，无需改代码。</div>' +
-        '<div id="iconStatus" style="margin-top:10px">' + (QZ._iconCheck || '<div class="empty">点击右上角「检测图标状态」查看 40 个图标位的自定义图片是否就位</div>') + '</div>' +
-        '<div class="note" style="margin-top:10px">未放入自定义图片时，全部图标位显示原创手绘卡通图标，保证全站风格零差异、无空白、无缺图。</div>'
+      tools: '<button class="btn ' + (iconMode === 'svg' ? 'btn-primary' : 'btn-soft') + ' btn-sm" onclick="QZ.actions.setIconMode(\'svg\')">原创图标（推荐）</button>' +
+        '<button class="btn ' + (iconMode === 'img' ? 'btn-primary' : 'btn-soft') + ' btn-sm" onclick="QZ.actions.setIconMode(\'img\')">自定义图片</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.checkIcons()">检测图标状态</button>',
+      body: '<div class="note teal">当前：<b>' + (iconMode === 'img' ? '自定义图片模式（先找 assets/icons/ 里的 PNG，找不到自动回退原创图标）' : '原创手绘图标模式（默认 · 不发任何图片请求，秒开、不会闪）') + '</b>。共 40 个图标位，覆盖侧边栏入口、卡片、按钮、标签；风格统一：100% 圆角、块面饱满、低饱和马卡龙浅色系 + 柔和青灰描边，零版权风险，可直接商用。</div>' +
+        (iconMode === 'img' ? '<div class="note yellow" style="margin-top:8px">自定义图片模式会为 <b>每个图标位</b> 请求一次 <code>assets/icons/图标位.png</code>。目录里没有对应图片时，浏览器会先显示一瞬裂图再回退手绘图标（就是「图标一直闪」的原因）。如果目录是空的，建议切回「原创图标（推荐）」。</div>' : '') +
+        '<div class="note" style="margin-top:8px">想换成其他可商用开源图标库（OpenMoji / Twemoji 等 CC0 / MIT 资源）：把图片按 <b>图标位.png</b> 命名放进 <b>assets/icons/</b> → 点「检测图标状态」确认就位 → 再点「自定义图片」切换，即全站生效，无需改代码。</div>' +
+        '<div id="iconStatus" style="margin-top:10px">' + (QZ._iconCheck || '<div class="empty">点击右上角「检测图标状态」查看 40 个图标位的自定义图片是否就位</div>') + '</div>'
     });
 
     var logs = (s.logs || []).slice(0, 6);
@@ -1378,7 +1383,8 @@
         if (--pending > 0) return;
         var ok = res.filter(function (r) { return r[1]; }).length;
         res.sort(function (a, b) { return (b[1] ? 1 : 0) - (a[1] ? 1 : 0); });
-        var html = '<div class="note teal">自定义图片已就位 <b>' + ok + ' / ' + keys.length + '</b> 个图标位；其余图标位当前显示原创手绘卡通图标。</div>' +
+        var html = '<div class="note ' + (ok ? 'teal' : 'yellow') + '">自定义图片已就位 <b>' + ok + ' / ' + keys.length + '</b> 个图标位；其余图标位当前显示原创手绘卡通图标。' +
+          (ok ? ' 点上方「自定义图片」即可让这些图片生效（缺失的仍自动回退手绘图标）。' : ' 目录 <code>assets/icons/</code> 里目前没有任何可用图片，建议保持「原创图标（推荐）」，可避免每次渲染都发 40 个 404 请求。') + '</div>' +
           '<div class="table-wrap" style="margin-top:8px"><table style="min-width:440px"><thead><tr><th>图标位</th><th>文件名</th><th>状态</th></tr></thead><tbody>' +
           res.map(function (r) {
             return '<tr><td>' + esc(labels[r[0]] || r[0]) + '</td><td>assets/icons/' + r[0] + '.png</td>' +
