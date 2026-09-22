@@ -987,7 +987,15 @@
             (QZ.jaf.lastMsg ? '<span class="chip teal">' + esc(QZ.jaf.lastMsg) + '</span>' : '') +
             '</div>' +
             '<dl class="kv">' + fields + '</dl>' +
-            '<div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;flex-wrap:wrap">' +
+            '<div class="note teal" style="margin-top:10px"><b>从简历自动识别</b>：把简历内容粘贴到下面的框（或选 .txt / .md / .docx 文件），点「识别并填入档案」，姓名、手机、邮箱、学校、专业、学历、GPA、英语水平、实习 / 项目 / 获奖等会自动抽出来填好，你只需核对和补剩下的。</div>' +
+            '<textarea id="jafResume" rows="4" placeholder="把简历内容粘贴到这里：在简历文档里 Ctrl+A 全选 → 复制 → 粘贴（PDF 请复制文本，不支持直接解析 PDF）" style="width:100%;margin-top:8px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font-size:12.5px;line-height:1.6"></textarea>' +
+            '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">' +
+            '<input type="file" id="jafResumeFile" accept=".txt,.md,.markdown,.docx" onchange="QZ.actions.jafResumeFile()" style="font-size:12px">' +
+            '<button class="btn btn-primary btn-sm" onclick="QZ.actions.jafParseResume()">识别并填入档案</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.jafParseResume(1)">只看识别结果</button>' +
+            '</div>' +
+            '<div id="jafParseOut" style="margin-top:8px">' + (QZ.jaf.lastParse || '') + '</div>' +
+            '<div style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;flex-wrap:wrap">' +
             '<textarea id="jafWB" rows="2" placeholder="扩展未连接时的兜底：把扩展弹窗里的「回写串」粘贴到这里" style="flex:1 1 320px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font-size:12.5px"></textarea>' +
             '<button class="btn btn-soft btn-sm" onclick="QZ.actions.jafWriteback()">应用回写</button></div>' +
             '<div class="note teal" style="margin-top:10px"><b>联动流程</b>：① 在本卡片填一次档案 → 点「同步档案到扩展」（或导出 JSON 后在扩展选项页「导入」）；② 岗位库点某行的「⚡网申」打开投递页 → 网申表单里按 <b>Alt+F</b> 或右键「⚡ 一键填充网申表单」；③ 填完扩展会回传结果，工作台自动把该岗位标成「已投递」并写入时间与备注。</div>' +
