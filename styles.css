@@ -58,6 +58,20 @@ a.nav-item{text-decoration:none;color:var(--text-2)}
 a.nav-item:hover{text-decoration:none}
 a.nav-item.active{color:var(--teal-dark)}
 
+/* 常驻版本条：屏幕最底部整条，深青色，一眼可见 */
+.verbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:99999;min-height:34px;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  padding:6px 12px;background:#2F8F86;color:#fff;font-size:12.5px;line-height:1.4;
+  text-align:center;box-shadow:0 -2px 10px rgba(0,0,0,.12);
+}
+.verbar #verbarTxt{flex:1;min-width:0}
+.verbar-btn{
+  flex:0 0 auto;height:26px;padding:0 12px;border:none;border-radius:13px;
+  background:#fff;color:#2F8F86;font-size:12px;font-weight:600;cursor:pointer;
+}
+body{padding-bottom:40px}
+
 /* 常驻诊断胶囊：右下角显示版本号 / 错误原文 */
 .diag-pill{
   display:none;position:fixed;right:12px;bottom:12px;z-index:9999;
