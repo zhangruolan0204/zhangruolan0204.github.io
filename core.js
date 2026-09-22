@@ -237,7 +237,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v29';
+  QZ.VERSION = 'v30';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -689,7 +689,7 @@
     if (typeof XLSX !== 'undefined') return cb();
     QZ.toast('正在加载 Excel 解析组件…');
     var s = document.createElement('script');
-    s.src = 'vendor/xlsx.full.min.js?v=29';
+    s.src = 'vendor/xlsx.full.min.js?v=30';
     s.onload = cb;
     s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
     document.head.appendChild(s);
