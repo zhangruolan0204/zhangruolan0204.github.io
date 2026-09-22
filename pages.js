@@ -365,7 +365,8 @@
               D.JOB_STATUS.map(function (s) { return '<option' + (x.status === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></td>' +
               '<td class="nowrap">' + esc(x.salary || '—') + '</td>' +
               '<td style="max-width:220px">' + esc(x.remark || '—') + '</td>' +
-              '<td class="nowrap">' + editBtn('jobs', x.id) + ' ' + delBtn('jobs', x.id) + '</td></tr>';
+              '<td class="nowrap">' + editBtn('jobs', x.id) + ' ' + delBtn('jobs', x.id) +
+              (x.link ? ' <button class="btn btn-soft btn-sm" title="打开投递页并交给网申助手自动填充" onclick="QZ.actions.jafApply(\'' + x.id + '\')">⚡网申</button>' : '') + '</td></tr>';
           })) +
         (list.length > PAGE_SIZE ? renderPager('jobs', page, totalPages, list.length, PAGE_SIZE) : '')
     });
@@ -846,6 +847,7 @@
   /* =============== 10. 设置中心 =============== */
   function pageSettings() {
     var u = QZ.user, s = QZ.data.sync;
+    try { QZ.jaf.ping(); } catch (e) { }   // 进入设置页时探测网申助手扩展
 
     var accountCard = QZ.card({
       icon: 'lock', title: '账号与密码', desc: '当前登录：' + esc(u.name) + '（' + u.username + '）· ' + (u.role === 'admin' ? '超级管理员' : '普通只读账号'),
@@ -961,6 +963,39 @@
         '<div class="note" style="margin-top:10px">全站配色固定为「浅青主色 + 米白背景 + 纯白卡片」方案（B 方案），图标统一原创手绘卡通马卡龙风格，如需调整样式可修改 styles.css 顶部的 CSS 变量。</div>'
     });
 
+    /* 网申助手扩展联动卡片：装了扩展才有联动效果，未安装时其余功能完全不受影响 */
+    var jafCard = (function () {
+      try {
+        var p = QZ.jaf.profile();
+        var FL = QZ.JAF_FIELDS || [];
+        var n = Object.keys(p).filter(function (k) { return String(p[k] || '').trim() !== ''; }).length;
+        var fields = FL.map(function (f) {
+          return '<dt>' + esc(f[1]) + '</dt><dd><input style="width:100%;padding:6px 9px;border:1px solid var(--border);border-radius:9px" value="' +
+            esc(p[f[0]] || '') + '" placeholder="' + esc(f[1]) + '" onchange="QZ.jaf.setProfile(\'' + f[0] + '\',this.value)"></dd>';
+        }).join('');
+        return QZ.card({
+          icon: 'key',
+          title: '网申自动填充助手 · 扩展联动',
+          desc: '与本机 Chrome / Edge 扩展「网申自动填充助手」打通：档案一键同步 → 网申页自动填表 → 填完自动回写投递状态',
+          tools: '<button class="btn btn-primary btn-sm" onclick="QZ.actions.jafSync()">同步档案到扩展</button>' +
+            '<button class="btn btn-soft btn-sm" onclick="QZ.actions.jafExport()">导出档案 JSON</button>' +
+            '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.jafPing()">重新检测扩展</button>',
+          body: '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">' +
+            (QZ.jaf.ready ? '<span class="chip green">扩展已连接 · v' + esc(QZ.jaf.ver || '1.x') + '</span>'
+              : '<span class="chip gray">未检测到扩展（不影响其他功能）</span>') +
+            '<span class="chip">档案已填 ' + n + ' / ' + FL.length + ' 项</span>' +
+            (QZ.jaf.lastMsg ? '<span class="chip teal">' + esc(QZ.jaf.lastMsg) + '</span>' : '') +
+            '</div>' +
+            '<dl class="kv">' + fields + '</dl>' +
+            '<div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;flex-wrap:wrap">' +
+            '<textarea id="jafWB" rows="2" placeholder="扩展未连接时的兜底：把扩展弹窗里的「回写串」粘贴到这里" style="flex:1 1 320px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font-size:12.5px"></textarea>' +
+            '<button class="btn btn-soft btn-sm" onclick="QZ.actions.jafWriteback()">应用回写</button></div>' +
+            '<div class="note teal" style="margin-top:10px"><b>联动流程</b>：① 在本卡片填一次档案 → 点「同步档案到扩展」（或导出 JSON 后在扩展选项页「导入」）；② 岗位库点某行的「⚡网申」打开投递页 → 网申表单里按 <b>Alt+F</b> 或右键「⚡ 一键填充网申表单」；③ 填完扩展会回传结果，工作台自动把该岗位标成「已投递」并写入时间与备注。</div>' +
+            '<div class="note" style="margin-top:8px">档案只保存在本机浏览器与本机扩展里，不上传任何服务器；扩展未安装时，本卡片与「⚡网申」按钮只相当于普通打开链接，不会引起任何报错。</div>'
+        });
+      } catch (e) { return ''; }
+    })();
+
     var aboutCard = QZ.card({
       icon: 'star', title: '使用说明与隐私', desc: '数据归属与访问方式',
       body: '<div class="list">' +
@@ -973,6 +1008,7 @@
 
     return '<div class="grid grid-2" style="margin-bottom:14px">' + accountCard + usersCard + '</div>' +
       '<div class="grid" style="margin-bottom:14px">' + iconCard + '</div>' +
+      '<div class="grid" style="margin-bottom:14px">' + jafCard + '</div>' +
       '<div class="grid" style="margin-bottom:14px">' + oauthCard + '</div>' +
       '<div class="grid grid-2" style="margin-bottom:14px">' + syncCard + pwaCard + '</div>' +
       '<div class="grid grid-2">' + dataCard + aboutCard + '</div>';
@@ -1217,6 +1253,35 @@
         QZ.save(); QZ.render(); QZ.toast('已改回「待投递」 ' + n + ' 条');
       });
     },
+    /* ---- 网申助手扩展联动 ---- */
+
+    /* 岗位库点「⚡网申」：打开投递链接 + 记住当前岗位上下文 */
+    jafApply: function (id) {
+      try {
+        var job = (QZ.data.jobs || []).filter(function (x) { return String(x.id) === String(id); })[0];
+        if (!job) { QZ.toast('岗位不存在'); return; }
+        QZ.jaf.setCtx(job);
+        if (job.link) {
+          window.open(job.link, '_blank', 'noopener');
+          QZ.toast('已打开 ' + job.company + ' 投递页：按 Alt+F 自动填充，填完这里会自动标成「已投递」');
+        } else {
+          QZ.toast('该岗位没有投递链接，已设为「当前投递目标」');
+        }
+      } catch (e) { QZ.toast('打开失败：' + e.message); }
+    },
+
+    /* 重发档案给扩展 */
+    jafSync: function () { try { QZ.jaf.syncProfile(); } catch (e) { } },
+    /* 导出档案 JSON */
+    jafExport: function () { try { QZ.jaf.exportProfile(); } catch (e) { } },
+    /* 重新检测扩展 */
+    jafPing: function () {
+      try {
+        QZ.jaf.ready = false; QZ.jaf.ping();
+        setTimeout(function () { QZ.render(); QZ.toast(QZ.jaf.ready ? ('已连接扩展 v' + QZ.jaf.ver) : '未检测到扩展（装了才有联动，其他功能不受影响）'); }, 600);
+      } catch (e) { }
+    },
+
     checkIcons: function () {
       var keys = D.ICON_KEYS || [];
       var labels = {
