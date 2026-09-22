@@ -26,7 +26,7 @@
         { key: 'link', label: '投递链接', ph: 'https://' },
         { key: 'remark', label: '备注 / 跟进要点', type: 'textarea', full: true }
       ],
-      defaults: function () { return { appliedAt: QZ.today(), status: '已投递', category: '软件测试' }; }
+      defaults: function () { return { appliedAt: QZ.today(), status: '待投递', category: '软件测试' }; }
     },
     exams: {
       key: 'exams', name: '笔试场次', tip: '账号密码、准考证、真题链接集中管理，避免临场手忙脚乱',
@@ -356,7 +356,7 @@
         QZ.table(['企业', '岗位 / 方向', '城市', '渠道 / 内推', '更新时间', '投递截止', '状态（可切换）', '薪资', '备注', '操作'],
           rows.map(function (x) {
             return '<tr><td class="nowrap"><b>' + esc(x.company) + '</b><br>' + linkBtn(x.link) + '</td>' +
-              '<td>' + esc(x.position) + '<br><span class="tag">' + esc(x.category) + '</span></td>' +
+              '<td>' + esc(x.position) + '<br><span class="tag">' + esc(x.category || '—') + '</span></td>' +
               '<td class="nowrap">' + esc(x.city) + '</td>' +
               '<td>' + esc(x.channel) + (x.referrer ? '<br><span class="tag">内推：' + esc(x.referrer) + '</span>' : '') + '</td>' +
               '<td class="nowrap">' + esc(x.appliedAt) + '</td>' +
@@ -952,7 +952,11 @@
         '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.resetData()">恢复初始样例数据</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.clearJobs()">只清空岗位投递库（' + QZ.data.jobs.length + ' 条）</button>' +
         '<button class="btn btn-danger btn-sm" onclick="QZ.actions.clearData()">清空全部业务数据</button>' +
-        '<button class="btn btn-primary btn-sm" onclick="QZ.actions.clearAndImport()">清空并重新导入</button></div>' +
+        '<button class="btn btn-primary btn-sm" onclick="QZ.actions.clearAndImport()">清空并重新导入</button>' +
+        '<button class="btn btn-soft btn-sm" onclick="QZ.actions.loadLatest()">一键载入最新汇总表（785 条）</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.resetJobStatus()">「已投递」全部改回「待投递」（' +
+        QZ.data.jobs.filter(function (x) { return x.status === '已投递'; }).length + ' 条）</button></div>' +
+        '<div class="note" style="margin-top:10px"><b>一键载入最新汇总表</b>：内置已清洗好的「婉清学姐校招汇总表」近 5 天更新数据（785 条），行业方向、截止时间、投递链接都已填好，直接点即可，不用再选文件。</div>' +
         '<div class="note" style="margin-top:10px">以上操作均<b>保留账号密码与同步设置</b>，只清除业务数据。清空后可点「导入 Excel / CSV」或「导入引导」重新导入。</div>' +
         '<div class="note" style="margin-top:10px">全站配色固定为「浅青主色 + 米白背景 + 纯白卡片」方案（B 方案），图标统一原创手绘卡通马卡龙风格，如需调整样式可修改 styles.css 顶部的 CSS 变量。</div>'
     });
@@ -1173,6 +1177,44 @@
         QZ.filters = {}; QZ.save(); QZ.render();
         QZ.toast('已清空 ' + total + ' 条数据，请选择导入方式');
         setTimeout(function () { QZ.actions.importGuide(); }, 400);
+      });
+    },
+
+    /* 一键载入内置的「近 5 天校招汇总表」已清洗数据 */
+    loadLatest: function () {
+      var URL = 'assets/latest-jobs.json?v=30';
+      function doLoad(clearFirst) {
+        QZ.closeModal();
+        QZ.toast(clearFirst ? '正在清空并载入…' : '正在载入…');
+        fetch(URL, { cache: 'no-store' }).then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        }).then(function (rows) {
+          if (!Array.isArray(rows)) throw new Error('数据格式不是数组');
+          if (clearFirst) { QZ.data.jobs = []; QZ.filters.jobs = { status: '', category: '', kw: '', page: 1 }; }
+          QZ.runSync({ text: JSON.stringify(rows), target: 'jobs', mode: 'overwrite', from: '内置汇总表（近5天 785 条）' });
+        }).catch(function (e) {
+          QZ.toast('载入失败：' + e.message + '（请确认能正常访问本站点）');
+        });
+      }
+      QZ.modal({
+        title: '一键载入最新汇总表',
+        desc: '内置「婉清学姐校招汇总表」近 5 天更新数据：785 条，已去广告、已填行业方向与截止时间，状态默认为「待投递」。当前岗位库 ' + QZ.data.jobs.length + ' 条。',
+        html: '<div class="note teal">选择载入方式（账号密码与其他模块不受影响）：</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
+          '<button class="btn btn-primary btn-sm" data-actx="clean">清空岗位库后载入（推荐）</button>' +
+          '<button class="btn btn-ghost btn-sm" data-actx="merge">保留现有、合并载入</button></div>',
+        onExtra: function (act) { doLoad(act === 'clean'); }
+      });
+    },
+
+    /* 把「已投递」批量改回「待投递」 */
+    resetJobStatus: function () {
+      var n = QZ.data.jobs.filter(function (x) { return x.status === '已投递'; }).length;
+      if (!n) { QZ.toast('没有「已投递」状态的岗位'); return; }
+      QZ.confirm('将把 ' + n + ' 条「已投递」改回「待投递」（你还没真正投递时用这个一键纠正），确定继续？', function () {
+        QZ.data.jobs.forEach(function (x) { if (x.status === '已投递') x.status = '待投递'; });
+        QZ.save(); QZ.render(); QZ.toast('已改回「待投递」 ' + n + ' 条');
       });
     },
     checkIcons: function () {
