@@ -944,7 +944,10 @@
         '</div>' +
         '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">' +
         '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.resetData()">恢复初始样例数据</button>' +
-        '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.clearData()">清空全部数据</button></div>' +
+        '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.clearJobs()">只清空岗位投递库（' + QZ.data.jobs.length + ' 条）</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="QZ.actions.clearData()">清空全部业务数据</button>' +
+        '<button class="btn btn-primary btn-sm" onclick="QZ.actions.clearAndImport()">清空并重新导入</button></div>' +
+        '<div class="note" style="margin-top:10px">以上操作均<b>保留账号密码与同步设置</b>，只清除业务数据。清空后可点「导入 Excel / CSV」或「导入引导」重新导入。</div>' +
         '<div class="note" style="margin-top:10px">全站配色固定为「浅青主色 + 米白背景 + 纯白卡片」方案（B 方案），图标统一原创手绘卡通马卡龙风格，如需调整样式可修改 styles.css 顶部的 CSS 变量。</div>'
     });
 
@@ -1142,9 +1145,28 @@
       });
     },
     clearData: function () {
-      QZ.confirm('将清空全部业务数据（保留账号与设置），确定继续？', function () {
+      QZ.confirm('将清空全部业务数据（岗位/笔试/面试/简历/题库/Offer/待办/资源），保留账号与设置，确定继续？', function () {
         ['jobs', 'exams', 'interviews', 'resumes', 'questions', 'offers', 'todos', 'resources'].forEach(function (k) { QZ.data[k] = []; });
-        QZ.save(); QZ.render(); QZ.toast('已清空业务数据');
+        QZ.filters = {}; QZ.save(); QZ.render(); QZ.toast('已清空全部业务数据，可重新导入');
+      });
+    },
+    clearJobs: function () {
+      var n = QZ.data.jobs.length;
+      if (!n) { QZ.toast('岗位投递库已经是空的'); return; }
+      QZ.confirm('将清空岗位投递库共 ' + n + ' 条记录（其他模块保留），确定继续？', function () {
+        QZ.data.jobs = [];
+        QZ.filters.jobs = { status: '', category: '', kw: '', page: 1 };
+        QZ.save(); QZ.render(); QZ.toast('已清空岗位投递库 ' + n + ' 条');
+      });
+    },
+    clearAndImport: function () {
+      var total = ['jobs', 'exams', 'interviews', 'resumes', 'questions', 'offers', 'todos', 'resources']
+        .reduce(function (s, k) { return s + (QZ.data[k] ? QZ.data[k].length : 0); }, 0);
+      QZ.confirm('将清空全部业务数据（当前共 ' + total + ' 条），然后打开导入引导。账号密码与同步设置不受影响，确定继续？', function () {
+        ['jobs', 'exams', 'interviews', 'resumes', 'questions', 'offers', 'todos', 'resources'].forEach(function (k) { QZ.data[k] = []; });
+        QZ.filters = {}; QZ.save(); QZ.render();
+        QZ.toast('已清空 ' + total + ' 条数据，请选择导入方式');
+        setTimeout(function () { QZ.actions.importGuide(); }, 400);
       });
     },
     checkIcons: function () {
