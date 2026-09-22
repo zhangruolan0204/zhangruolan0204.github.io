@@ -16,13 +16,13 @@
 <meta http-equiv="Expires" content="0">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=24">
+<link rel="stylesheet" href="styles.css?v=25">
 <script>
 /* 版本升级时强制清场：注销全部 Service Worker + 清空全部缓存 + 重载一次
    —— 彻底解决浏览器一直执行旧脚本导致菜单点不动的问题（只执行一次，不会循环） */
 (function () {
   try {
-    var V = 'v24';
+    var V = 'v25';
     if (localStorage.getItem('qz_ver') !== V) {
       try { localStorage.setItem('qz_ver', V); } catch (e) { }
       if (window.caches && caches.keys) {
@@ -45,6 +45,12 @@
 </script>
 </head>
 <body>
+
+<!-- 常驻版本条（屏幕正上方，蓝色长条）：一眼确认实际加载的版本 + 一键清缓存 -->
+<div id="verbar" class="verbar">
+  <span id="verbarTxt">秋招工作台 v25（若这行只有版本号、没有「当前模块」，说明 JS 未执行）</span>
+  <button class="verbar-btn" onclick="return (window.QZ && QZ.hardReset) ? QZ.hardReset() : location.reload();">清缓存重载</button>
+</div>
 
 <!-- ========== 登录页 ========== -->
 <div id="login" class="login-screen">
@@ -119,29 +125,29 @@
 <!-- 常驻诊断胶囊：显示实际加载版本与错误原文，便于快速定位 -->
 <div id="diag" class="diag-pill"></div>
 <script>
-window.addEventListener('error', function (ev) {
+function qzShowErr(msg) {
+  if (window.QZ && QZ.paintDiag) { try { QZ.paintDiag(msg, true); } catch (e) { } }
+  var vb = document.getElementById('verbarTxt'), bar = document.getElementById('verbar');
+  if (vb) vb.textContent = 'v25 · ' + msg;
+  if (bar) bar.style.background = '#ff4d4f';
   var d = document.getElementById('diag');
-  if (!d) return;
-  d.className = 'diag-pill bad';
-  d.style.display = 'block';
-  d.textContent = '脚本错误：' + (ev.message || '未知') + ' @' +
-    String(ev.filename || '').split('/').pop() + ':' + ev.lineno;
+  if (d) { d.className = 'diag-pill bad'; d.style.display = 'block'; d.textContent = msg; }
+}
+window.addEventListener('error', function (ev) {
+  qzShowErr('脚本错误：' + (ev.message || '未知') + ' @' +
+    String(ev.filename || '').split('/').pop() + ':' + ev.lineno);
 });
 window.addEventListener('unhandledrejection', function (ev) {
-  var d = document.getElementById('diag');
-  if (!d) return;
-  d.className = 'diag-pill bad';
-  d.style.display = 'block';
-  d.textContent = '异步错误：' + ((ev.reason && ev.reason.message) || ev.reason || '未知');
+  qzShowErr('异步错误：' + ((ev.reason && ev.reason.message) || ev.reason || '未知'));
 });
 </script>
-<script src="data.js?v=24" defer></script>
-<script src="core.js?v=24" defer></script>
-<script src="pages.js?v=24" defer></script>
+<script src="data.js?v=25" defer></script>
+<script src="core.js?v=25" defer></script>
+<script src="pages.js?v=25" defer></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js?v=24').catch(function () {});
+      navigator.serviceWorker.register('sw.js?v=25').catch(function () {});
       // 新版本 Service Worker 接管后自动刷新一次，保证总是展示最新版本
       var refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', function () {
