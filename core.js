@@ -237,7 +237,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 诊断胶囊：显示实际运行的版本与模块数，出错时显示错误原文 */
-  QZ.VERSION = 'v26';
+  QZ.VERSION = 'v27';
   function paintDiag(txt, bad) {
     var line = QZ.VERSION + ' · 当前 ' + QZ.page + ' · ' + QZ.pages.length + ' 模块' + (txt ? ' · ' + txt : '');
     try {
@@ -669,7 +669,7 @@
     if (typeof XLSX !== 'undefined') return cb();
     QZ.toast('正在加载 Excel 解析组件…');
     var s = document.createElement('script');
-    s.src = 'vendor/xlsx.full.min.js?v=26';
+    s.src = 'vendor/xlsx.full.min.js?v=27';
     s.onload = cb;
     s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
     document.head.appendChild(s);
