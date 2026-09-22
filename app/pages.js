@@ -24,7 +24,8 @@
         { key: 'status', label: '当前状态', type: 'select', options: D.JOB_STATUS, def: '已投递' },
         { key: 'salary', label: '薪资范围', ph: '如：16K×15' },
         { key: 'link', label: '投递链接', ph: 'https://' },
-        { key: 'remark', label: '备注 / 跟进要点', type: 'textarea', full: true }
+        { key: 'remark', label: '备注 / 跟进要点', type: 'textarea', full: true },
+        { key: 'jd', label: '岗位 JD（粘贴后可做适配分析）', type: 'textarea', full: true }
       ],
       defaults: function () { return { appliedAt: QZ.today(), status: '待投递', category: '软件测试' }; }
     },
@@ -366,6 +367,7 @@
               '<td class="nowrap">' + esc(x.salary || '—') + '</td>' +
               '<td style="max-width:220px">' + esc(x.remark || '—') + '</td>' +
               '<td class="nowrap">' + editBtn('jobs', x.id) + ' ' + delBtn('jobs', x.id) +
+              ' <button class="btn btn-primary btn-sm" title="读取本机简历档案与该岗位 JD，分析适配度" onclick="QZ.actions.jobFit(\'' + x.id + '\')">岗位适配分析</button>' +
               (x.link ? ' <button class="btn btn-soft btn-sm" title="打开投递页并交给网申助手自动填充" onclick="QZ.actions.jafApply(\'' + x.id + '\')">⚡网申</button>' : '') + '</td></tr>';
           })) +
         (list.length > PAGE_SIZE ? renderPager('jobs', page, totalPages, list.length, PAGE_SIZE) : '')
@@ -1009,6 +1011,30 @@
       } catch (e) { return ''; }
     })();
 
+    var aiCfg = QZ.data.aiCfg || (QZ.data.aiCfg = { key: '', model: 'deepseek-chat', base: '', on: true });
+    var fitCard = QZ.card({
+      icon: 'target',
+      title: '岗位适配分析 · AI 深度模式',
+      desc: '岗位库每行「岗位适配分析」按钮用的就是这个档案；不填 Key 也能用，自动走离线关键词兜底',
+      body: '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">' +
+        '<span class="chip ' + (aiCfg.key && aiCfg.on !== false ? 'blue' : 'gray') + '">' +
+        (aiCfg.key && aiCfg.on !== false ? '当前：AI 深度分析（失败自动回落离线）' : '当前：离线关键词分析') + '</span>' +
+        '<span class="chip gray">简历档案 ' + Object.keys(QZ.data.profile || {}).filter(function (k) { return String(QZ.data.profile[k] || '').trim(); }).length + ' 项</span>' +
+        '<span class="chip gray">历史报告 ' + Object.keys(QZ.data.fitReports || {}).reduce(function (a, k) { return a + ((QZ.data.fitReports[k] || []).length); }, 0) + ' 份</span></div>' +
+        '<div class="modal-grid">' +
+        '<div class="full" style="margin-bottom:8px"><div style="font-size:12.5px;color:var(--text-2);margin-bottom:4px">API Key（留空即全程离线）</div>' +
+        '<input type="password" value="' + esc(aiCfg.key || '') + '" placeholder="sk-xxxxxxxx" onchange="QZ.actions.aiSet(\'key\',this.value)" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:12px;background:#FCFBF8"></div>' +
+        '<div style="margin-bottom:8px"><div style="font-size:12.5px;color:var(--text-2);margin-bottom:4px">模型</div>' +
+        '<input value="' + esc(aiCfg.model || 'deepseek-chat') + '" placeholder="deepseek-chat" onchange="QZ.actions.aiSet(\'model\',this.value)" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:12px;background:#FCFBF8"></div>' +
+        '<div style="margin-bottom:8px"><div style="font-size:12.5px;color:var(--text-2);margin-bottom:4px">接口地址</div>' +
+        '<input value="' + esc(aiCfg.base || '') + '" placeholder="https://api.deepseek.com/chat/completions" onchange="QZ.actions.aiSet(\'base\',this.value)" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:12px;background:#FCFBF8"></div>' +
+        '</div>' +
+        '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin-top:4px">' +
+        '<input type="checkbox"' + (aiCfg.on !== false ? ' checked' : '') + ' onchange="QZ.actions.aiSet(\'on\',this.checked)">启用 AI 深度分析（关闭则始终离线）</label>' +
+        '<div class="note" style="margin-top:10px"><b>隐私</b>：Key 只存在你本机浏览器，不会同步到任何服务器；只有点「开始适配分析」且填了 Key 时，简历档案与该岗位 JD 才会发给你填的这家 API。离线模式下所有计算都在浏览器里完成，完全不出网。</div>' +
+        '<div class="note teal" style="margin-top:8px"><b>怎么用</b>：岗位投递库任意一行 → 点「岗位适配分析」→ 核对 JD（可粘贴真实 JD 后保存）→ 点「开始适配分析」→ 得到 0~100 适配总分、匹配亮点、能力短板、岗位通俗解读与投递建议，报告自动存进该岗位的历史记录。</div>'
+    });
+
     var aboutCard = QZ.card({
       icon: 'star', title: '使用说明与隐私', desc: '数据归属与访问方式',
       body: '<div class="list">' +
@@ -1022,6 +1048,7 @@
     return '<div class="grid grid-2" style="margin-bottom:14px">' + accountCard + usersCard + '</div>' +
       '<div class="grid" style="margin-bottom:14px">' + iconCard + '</div>' +
       '<div class="grid" style="margin-bottom:14px">' + jafCard + '</div>' +
+      '<div class="grid" style="margin-bottom:14px">' + fitCard + '</div>' +
       '<div class="grid" style="margin-bottom:14px">' + oauthCard + '</div>' +
       '<div class="grid grid-2" style="margin-bottom:14px">' + syncCard + pwaCard + '</div>' +
       '<div class="grid grid-2">' + dataCard + aboutCard + '</div>';
@@ -1047,6 +1074,13 @@
     },
     syncSet: function (key, val) {
       QZ.data.sync[key] = val; QZ.save(); QZ.render(); QZ.toast('已保存设置');
+    },
+    aiSet: function (key, val) {
+      QZ.data.aiCfg = QZ.data.aiCfg || { key: '', model: 'deepseek-chat', base: '', on: true };
+      QZ.data.aiCfg[key] = val;
+      if (key === 'model' && !val) QZ.data.aiCfg.model = 'deepseek-chat';
+      if (key === 'base' && !val) QZ.data.aiCfg.base = '';
+      QZ.save(); QZ.render(); QZ.toast('已保存 AI 分析设置（仅本机）');
     },
     oauthSet: function (key, val) {
       QZ.data.sync.oauth = QZ.data.sync.oauth || {};
