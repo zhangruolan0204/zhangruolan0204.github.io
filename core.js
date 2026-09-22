@@ -237,7 +237,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v33';
+  QZ.VERSION = 'v34';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -1072,6 +1072,199 @@
       QZ.render();
       QZ.toast('已导入 ' + n + ' 项，核对后可点「同步档案到扩展」');
     } catch (e) { QZ.toast('导入失败：' + e.message); }
+  };
+
+  /* ---------------- 岗位适配分析（v34） ---------------- */
+
+  QZ.fit = { last: null, busy: false };
+
+  function fitStore() {
+    try {
+      if (!QZ.data.fitReports || typeof QZ.data.fitReports !== 'object') QZ.data.fitReports = {};
+    } catch (e) { QZ.data.fitReports = {}; }
+    return QZ.data.fitReports;
+  }
+  QZ.fit.store = fitStore;
+
+  function aiCfg() {
+    try {
+      if (!QZ.data.aiCfg || typeof QZ.data.aiCfg !== 'object') {
+        QZ.data.aiCfg = { key: '', model: 'deepseek-chat', base: '', on: true };
+      }
+    } catch (e) { QZ.data.aiCfg = { key: '', model: 'deepseek-chat', base: '', on: true }; }
+    return QZ.data.aiCfg;
+  }
+  QZ.fit.cfg = aiCfg;
+
+  function fitJob(id) {
+    var l = QZ.data.jobs || [];
+    for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i];
+    return null;
+  }
+
+  function fitLevelChip(lv) {
+    var cls = lv === '高度推荐' ? 'green' : (lv === '可以投递' ? 'blue' : (lv === '谨慎投递' ? 'yellow' : 'red'));
+    return '<span class="chip ' + cls + '">' + QZ.esc(lv) + '</span>';
+  }
+
+  function fitScoreBar(score) {
+    var c = score >= 80 ? '#1D9E75' : (score >= 65 ? '#3E7CC4' : (score >= 45 ? '#B8801F' : '#C0392B'));
+    return '<div style="display:flex;align-items:center;gap:10px;margin:6px 0 2px">' +
+      '<div style="flex:1;height:10px;border-radius:6px;background:var(--cream-2,#F1EFE8);overflow:hidden">' +
+      '<div style="width:' + Math.max(2, Math.min(100, score)) + '%;height:100%;background:' + c + '"></div></div>' +
+      '<b style="font-size:20px;color:' + c + '">' + score + '</b><span style="font-size:12px;color:var(--text-2)">/ 100</span></div>';
+  }
+
+  /** 分析结果 → HTML */
+  function fitRecHtml(rec) {
+    var h = '<div style="border:1px solid var(--border);border-radius:14px;padding:12px 14px;background:#FCFBF8;margin-top:10px">';
+    h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+      '<b style="font-size:14px">适配总分</b>' + fitLevelChip(rec.level) +
+      '<span class="chip ' + (rec.mode === 'ai' ? 'blue' : 'gray') + '">' + (rec.mode === 'ai' ? 'AI 深度分析' : '离线关键词分析') + '</span>' +
+      '<span class="chip gray">' + QZ.esc(rec.tsText || '') + '</span></div>';
+    h += fitScoreBar(rec.score);
+    if (rec.note) h += '<div class="note" style="margin-top:6px">' + QZ.esc(rec.note) + '</div>';
+
+    if (rec.plain && rec.plain.text) {
+      h += '<div style="margin-top:12px"><b style="font-size:13px">岗位通俗解读 · ' + QZ.esc(rec.plain.title || '') + '</b>' +
+        '<div style="font-size:12.5px;line-height:1.7;color:var(--text-2);margin-top:4px">' + QZ.esc(rec.plain.text) + '</div>' +
+        (rec.plain.bullets && rec.plain.bullets.length ? '<ul style="margin:6px 0 0 18px;font-size:12.5px;line-height:1.8;color:var(--text-2)">' +
+          rec.plain.bullets.map(function (b) { return '<li>' + QZ.esc(b) + '</li>'; }).join('') + '</ul>' : '') + '</div>';
+    }
+    if (rec.highlights && rec.highlights.length) {
+      h += '<div style="margin-top:12px"><b style="font-size:13px">匹配亮点（简历里有的）</b><div class="list" style="margin-top:6px">' +
+        rec.highlights.map(function (x) {
+          return '<div class="list-item"><div class="li-main"><div class="li-title">' + QZ.esc(x.title) + '</div>' +
+            '<div class="li-sub" style="font-size:12px;color:var(--text-2)">' + QZ.esc(x.evidence || '') + '</div></div></div>';
+        }).join('') + '</div></div>';
+    }
+    if (rec.gaps && rec.gaps.length) {
+      h += '<div style="margin-top:12px"><b style="font-size:13px">能力短板（JD 要但简历没体现）</b><div class="list" style="margin-top:6px">' +
+        rec.gaps.map(function (x) {
+          return '<div class="list-item"><div class="li-main"><div class="li-title">' + QZ.esc(x.title) + '</div>' +
+            '<div class="li-sub" style="font-size:12px;color:var(--text-2)">' + QZ.esc(x.why || '') + '</div></div></div>';
+        }).join('') + '</div></div>';
+    }
+    if (rec.transfer) {
+      h += '<div style="margin-top:12px"><b style="font-size:13px">转行适配判断</b>' +
+        '<div style="font-size:12.5px;line-height:1.7;color:var(--text-2);margin-top:4px">' + QZ.esc(rec.transfer) + '</div></div>';
+    }
+    if (rec.advice && rec.advice.length) {
+      h += '<div style="margin-top:12px"><b style="font-size:13px">简历优化 & 面试准备建议</b><ol style="margin:6px 0 0 18px;font-size:12.5px;line-height:1.8;color:var(--text-2)">' +
+        rec.advice.map(function (a) { return '<li>' + QZ.esc(a) + '</li>'; }).join('') + '</ol></div>';
+    }
+    return h + '</div>';
+  }
+
+  function fitHistoryHtml(id) {
+    var list = fitStore()[id] || [];
+    if (!list.length) return '<div class="note" style="margin-top:8px">还没有历史分析记录，点「开始适配分析」生成第一条。</div>';
+    return '<div style="margin-top:10px"><b style="font-size:13px">历史分析记录（' + list.length + '）</b>' +
+      '<div class="table-wrap" style="margin-top:6px"><table style="min-width:380px"><thead><tr><th>时间</th><th>模式</th><th>分数</th><th>评级</th><th>操作</th></tr></thead><tbody>' +
+      list.map(function (r, i) {
+        return '<tr><td class="nowrap">' + QZ.esc(r.tsText || '') + '</td>' +
+          '<td>' + (r.mode === 'ai' ? 'AI' : '离线') + '</td>' +
+          '<td><b>' + r.score + '</b></td><td>' + fitLevelChip(r.level) + '</td>' +
+          '<td class="nowrap"><button class="btn btn-ghost btn-sm" data-actx="view:' + i + '">查看</button> ' +
+          '<button class="btn btn-ghost btn-sm" data-actx="del:' + i + '">删除</button></td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+  }
+
+  /** 打开岗位适配分析弹窗 */
+  QZ.actions = QZ.actions || {};
+  QZ.actions.jobFit = function (id) {
+    try {
+      var job = fitJob(id);
+      if (!job) { QZ.toast('没找到该岗位'); return; }
+      var p = jafProfile();
+      var filled = Object.keys(p).filter(function (k) { return String(p[k] || '').trim(); }).length;
+      var cfg = aiCfg();
+      var jdText = job.jd || (window.FitAnalyzer ? window.FitAnalyzer.jdDraft(job) : '');
+      var last = (QZ.fit.last && QZ.fit.last.id === id) ? QZ.fit.last.rec : null;
+
+      var html = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">' +
+        '<span class="chip ' + (filled >= 6 ? 'green' : 'yellow') + '">简历档案已填 ' + filled + ' 项</span>' +
+        '<span class="chip gray">' + QZ.esc(job.position || '') + '</span>' +
+        '<span class="chip ' + (cfg.key && cfg.on !== false ? 'blue' : 'gray') + '">' +
+        (cfg.key && cfg.on !== false ? 'AI 深度分析可用' : '离线兜底模式可用') + '</span>' +
+        '<button class="btn btn-ghost btn-sm" onclick="QZ.closeModal();QZ.go(\'settings\')">补全简历档案</button></div>' +
+        (filled < 4 ? '<div class="note" style="margin-bottom:8px">简历档案内容太少，分析结果会偏保守。建议先到设置中心用「从简历自动识别」或「导入档案 JSON」把档案填好。</div>' : '') +
+        '<div style="font-size:12.5px;color:var(--text-2);margin-bottom:4px">岗位 JD（可手动修改，改完点「保存 JD」）</div>' +
+        '<textarea id="fitJd" rows="7" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:12px;background:#FCFBF8;font-size:12.5px;line-height:1.6">' + QZ.esc(jdText) + '</textarea>' +
+        '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">' +
+        '<select id="fitMode" style="padding:7px 9px;border:1px solid var(--border);border-radius:10px;background:#fff;font-size:12.5px">' +
+        '<option value="auto">自动（有 Key 走 AI，失败回落离线）</option>' +
+        '<option value="ai">只用 AI 深度分析</option>' +
+        '<option value="offline">只用离线关键词分析</option></select>' +
+        '<button class="btn btn-primary btn-sm" data-actx="run">开始适配分析</button>' +
+        '<button class="btn btn-soft btn-sm" data-actx="saveJd">保存 JD</button>' +
+        '<span class="muted" style="font-size:12px">分析只用本机档案 + 你填的 JD；离线模式完全不出网</span></div>' +
+        '<div id="fitOut">' + (last ? fitRecHtml(last) : '') + '</div>' +
+        fitHistoryHtml(id);
+
+      QZ.modal({
+        title: '岗位适配分析 · ' + QZ.esc(job.company || ''),
+        desc: '读取本机简历档案与岗位 JD，输出适配总分、匹配亮点、能力短板、岗位解读与投递建议',
+        html: html,
+        cancelText: '关闭',
+        onExtra: function (actx, wrap) {
+          try {
+            var jdEl = wrap.querySelector('#fitJd');
+            var jd = jdEl ? jdEl.value : '';
+            var mdEl = wrap.querySelector('#fitMode');
+            var mode = mdEl ? mdEl.value : 'auto';
+            if (actx === 'run') { QZ.actions.jobFitRun(id, mode, jd); }
+            else if (actx === 'saveJd') {
+              var j2 = fitJob(id); if (!j2) return;
+              j2.jd = jd; QZ.save(); QZ.toast('JD 已保存到该岗位'); QZ.render();
+            } else if (actx.indexOf('view:') === 0) {
+              var idx = parseInt(actx.slice(5), 10);
+              var list = fitStore()[id] || [];
+              if (list[idx]) { QZ.fit.last = { id: id, rec: list[idx] }; QZ.actions.jobFit(id); }
+            } else if (actx.indexOf('del:') === 0) {
+              var k = parseInt(actx.slice(4), 10);
+              var arr = fitStore()[id] || [];
+              arr.splice(k, 1);
+              fitStore()[id] = arr;
+              if (QZ.fit.last && QZ.fit.last.id === id && k === 0) QZ.fit.last = null;
+              QZ.save(); QZ.actions.jobFit(id); QZ.toast('已删除该条记录');
+            }
+          } catch (e) { QZ.toast('操作失败：' + e.message); }
+        }
+      });
+    } catch (e) { QZ.toast('打开分析面板失败：' + e.message); }
+  };
+
+  /** 执行分析（结果写进历史并重开弹窗展示） */
+  QZ.actions.jobFitRun = function (id, mode, jdText) {
+    try {
+      var job = fitJob(id);
+      if (!job) { QZ.toast('没找到该岗位'); return; }
+      if (typeof jdText === 'string' && jdText.trim()) job.jd = jdText;
+      var A = window.FitAnalyzer;
+      if (!A || !A.analyze) { QZ.toast('分析组件未加载，请刷新页面重试'); return; }
+      var rt = A.resumeText(jafProfile());
+      var jd = job.jd || A.jdDraft(job);
+      if (!String(rt).trim()) { QZ.toast('简历档案是空的，先到设置中心填写'); return; }
+      QZ.toast('分析中…');
+      A.analyze(rt, jd, job, aiCfg(), mode || 'auto').then(function (r) {
+        var rec = r.data || {};
+        var d = new Date();
+        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+        rec.tsText = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        var arr = fitStore()[id] || [];
+        arr.unshift(rec);
+        fitStore()[id] = arr.slice(0, 20);
+        QZ.fit.last = { id: id, rec: rec };
+        QZ.save();
+        QZ.actions.jobFit(id);
+        QZ.render();
+        if (r.used === 'offline' && r.err) QZ.toast('AI 分析失败（' + r.err + '），已用离线兜底出结果');
+        else QZ.toast('分析完成：' + rec.score + ' 分 · ' + rec.level);
+      }).catch(function (e) {
+        QZ.toast('分析失败：' + ((e && e.message) || '未知错误'));
+      });
+    } catch (e) { QZ.toast('分析失败：' + e.message); }
   };
 
   QZ.actions = QZ.actions || {};
