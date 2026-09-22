@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "秋招工作台 · 飞书表格同步桥接",
+  "version": "1.0.0",
+  "description": "复用本机已登录的飞书账号权限，自动抓取指定多维表格数据并同步到本地秋招工作台（无需公开表格权限、无需手动导入）",
+  "permissions": [
+    "storage",
+    "scripting",
+    "alarms",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*.feishu.cn/*",
+    "https://*.workbuddy.host/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "飞书表格 → 秋招工作台"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.feishu.cn/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*.workbuddy.host/*"
+      ],
+      "js": [
+        "bridge-client.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}
