@@ -20,6 +20,7 @@
         { key: 'channel', label: '投递渠道', type: 'select', options: CHANNELS },
         { key: 'referrer', label: '内推人', ph: '如：学长 李明' },
         { key: 'appliedAt', label: '投递时间', type: 'date' },
+        { key: 'deadline', label: '投递截止', ph: '如：2026-10-05 或 尽快投递' },
         { key: 'status', label: '当前状态', type: 'select', options: D.JOB_STATUS, def: '已投递' },
         { key: 'salary', label: '薪资范围', ph: '如：16K×15' },
         { key: 'link', label: '投递链接', ph: 'https://' },
@@ -336,8 +337,12 @@
     var statusOptions = '<option value="">全部</option>' + D.JOB_STATUS.map(function (s) {
       return '<option' + (f.status === s ? ' selected' : '') + '>' + s + '</option>';
     }).join('');
-    var categoryOptions = '<option value="">全部</option>' + D.CATEGORIES.map(function (s) {
-      return '<option' + (f.category === s ? ' selected' : '') + '>' + s + '</option>';
+    /* 方向下拉：预设类别 + 数据中实际出现过的类别（导入外部汇总表后也能筛） */
+    var seenCat = {}, catList = D.CATEGORIES.slice();
+    QZ.data.jobs.forEach(function (x) { if (x.category) seenCat[x.category] = 1; });
+    Object.keys(seenCat).forEach(function (c) { if (catList.indexOf(c) < 0) catList.push(c); });
+    var categoryOptions = '<option value="">全部</option>' + catList.map(function (s) {
+      return '<option' + (f.category === s ? ' selected' : '') + '>' + esc(s) + '</option>';
     }).join('');
 
     html += QZ.card({
@@ -348,13 +353,14 @@
         '<label>方向</label><select onchange="QZ.setFilter(\'jobs\',\'category\',this.value)">' + categoryOptions + '</select>' +
         '<input placeholder="搜索企业 / 岗位 / 城市" value="' + esc(f.kw) + '" onchange="QZ.setFilter(\'jobs\',\'kw\',this.value)">' +
         '<span class="chip">共 ' + list.length + ' 条</span></div>' +
-        QZ.table(['企业', '岗位 / 方向', '城市', '渠道 / 内推', '投递时间', '状态（可切换）', '薪资', '备注', '操作'],
+        QZ.table(['企业', '岗位 / 方向', '城市', '渠道 / 内推', '更新时间', '投递截止', '状态（可切换）', '薪资', '备注', '操作'],
           rows.map(function (x) {
             return '<tr><td class="nowrap"><b>' + esc(x.company) + '</b><br>' + linkBtn(x.link) + '</td>' +
               '<td>' + esc(x.position) + '<br><span class="tag">' + esc(x.category) + '</span></td>' +
               '<td class="nowrap">' + esc(x.city) + '</td>' +
               '<td>' + esc(x.channel) + (x.referrer ? '<br><span class="tag">内推：' + esc(x.referrer) + '</span>' : '') + '</td>' +
               '<td class="nowrap">' + esc(x.appliedAt) + '</td>' +
+              '<td class="nowrap">' + esc(x.deadline || '—') + '</td>' +
               '<td><select class="chip" style="border:1px solid var(--border);background:#fff" onchange="QZ.act(\'jobStatus\',\'' + x.id + '\',this.value)">' +
               D.JOB_STATUS.map(function (s) { return '<option' + (x.status === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></td>' +
               '<td class="nowrap">' + esc(x.salary || '—') + '</td>' +
