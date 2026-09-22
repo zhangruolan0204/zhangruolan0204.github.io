@@ -16,13 +16,13 @@
 <meta http-equiv="Expires" content="0">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=34">
+<link rel="stylesheet" href="styles.css?v=35">
 <script>
 /* 版本升级时强制清场：注销全部 Service Worker + 清空全部缓存 + 重载一次
    —— 彻底解决浏览器一直执行旧脚本导致菜单点不动的问题（只执行一次，不会循环） */
 (function () {
   try {
-    var V = 'v34';
+    var V = 'v35';
     if (localStorage.getItem('qz_ver') !== V) {
       try { localStorage.setItem('qz_ver', V); } catch (e) { }
       if (window.caches && caches.keys) {
@@ -48,7 +48,7 @@
 
 <!-- 底部细提示条：显示实际加载的版本 + 清缓存入口，出错时整条变红；可点 × 隐藏 -->
 <div id="verbar" class="verbar">
-  <span id="verbarTxt">秋招工作台 v34</span>
+  <span id="verbarTxt">秋招工作台 v35</span>
   <button class="verbar-btn" onclick="return (window.QZ && QZ.hardReset) ? QZ.hardReset() : location.reload();">清缓存</button>
   <button class="verbar-x" title="隐藏这条提示（下次更新版本会重新出现）" onclick="return (window.QZ && QZ.hideVerbar) ? QZ.hideVerbar() : (document.getElementById('verbar').style.display='none');">&times;</button>
 </div>
@@ -129,7 +129,7 @@
 function qzShowErr(msg) {
   if (window.QZ && QZ.paintDiag) { try { QZ.paintDiag(msg, true); } catch (e) { } }
   var vb = document.getElementById('verbarTxt'), bar = document.getElementById('verbar');
-  if (vb) vb.textContent = 'v34 · ' + msg;
+  if (vb) vb.textContent = 'v35 · ' + msg;
   if (bar) bar.style.background = '#ff4d4f';
   var d = document.getElementById('diag');
   if (d) { d.className = 'diag-pill bad'; d.style.display = 'block'; d.textContent = msg; }
@@ -142,15 +142,15 @@ window.addEventListener('unhandledrejection', function (ev) {
   qzShowErr('异步错误：' + ((ev.reason && ev.reason.message) || ev.reason || '未知'));
 });
 </script>
-<script src="resume-parser.js?v=34" defer></script>
-<script src="fit-analyzer.js?v=34" defer></script>
-<script src="data.js?v=34" defer></script>
-<script src="core.js?v=34" defer></script>
-<script src="pages.js?v=34" defer></script>
+<script src="resume-parser.js?v=35" defer></script>
+<script src="fit-analyzer.js?v=35" defer></script>
+<script src="data.js?v=35" defer></script>
+<script src="core.js?v=35" defer></script>
+<script src="pages.js?v=35" defer></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js?v=34').catch(function () {});
+      navigator.serviceWorker.register('sw.js?v=35').catch(function () {});
       // 新版本 Service Worker 接管后自动刷新一次，保证总是展示最新版本
       var refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', function () {
