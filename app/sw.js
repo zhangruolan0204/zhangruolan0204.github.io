@@ -1,5 +1,5 @@
 /* 秋招工作台 Service Worker · 网络优先，断网兜底 */
-var CACHE = 'qz2027-v31';
+var CACHE = 'qz2027-v32';
 var ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ var ASSETS = [
   './data.js',
   './core.js',
   './pages.js',
+  './resume-parser.js',
   './vendor/xlsx.full.min.js?v=27',
   './manifest.webmanifest',
   './icons/icon-192.png',
