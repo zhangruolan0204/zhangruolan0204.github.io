@@ -267,20 +267,36 @@
       'fill="none" stroke="#5A6B67" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">' + body + '</svg>';
   }
 
+  /* 图标模式：'svg' = 直接用原创手绘 SVG（默认，零网络请求、秒开、绝不闪）
+              'img'  = 先尝试 assets/icons/<key>.png，失败再回退 SVG（需自己放图，否则会有一瞬裂图） */
+  var USE_IMG = false;
+
   /* 图片加载失败 → 显示原创卡通图标 */
   function iconFallback(img) {
-    img.style.display = 'none';
-    var fb = img.nextElementSibling;
-    if (fb) fb.style.display = 'inline-flex';
+    try {
+      if (!img) return;
+      img.style.display = 'none';
+      var fb = img.nextElementSibling;
+      if (fb) fb.style.display = 'inline-flex';
+    } catch (e) { }
   }
 
-  /* 统一图标入口：assets/icons/<key>.png 优先（可选自定义），缺失则用原创卡通图标 */
+  /* 统一图标入口：默认纯 SVG；开启自定义图片模式后才发 PNG 请求 */
   function iconImg(name, size, cls) {
     size = size || 42;
-    return '<span class="nx-icon-img' + (cls ? ' ' + cls : '') + '" style="width:' + size + 'px;height:' + size + 'px">' +
+    var cls2 = 'nx-icon-img' + (cls ? ' ' + cls : '');
+    var box = ' style="width:' + size + 'px;height:' + size + 'px"';
+    var svg = artSvg(name, size);
+    if (!USE_IMG) {
+      return '<span class="' + cls2 + '"' + box + '><span class="nx-fb" style="display:inline-flex">' + svg + '</span></span>';
+    }
+    return '<span class="' + cls2 + '"' + box + '>' +
       '<img src="' + ICON_DIR + name + '.png" alt="" onerror="QZ_DATA.iconFallback(this)">' +
-      '<span class="nx-fb">' + artSvg(name, size) + '</span></span>';
+      '<span class="nx-fb">' + svg + '</span></span>';
   }
+
+  function setIconMode(m) { USE_IMG = (m === 'img'); }
+  function iconMode() { return USE_IMG ? 'img' : 'svg'; }
 
   /* 模块 / 卡片 / 导航图标 */
   function shinIcon(name, size) { return iconImg(name, size || 42, ''); }
@@ -396,6 +412,7 @@
   global.QZ_DATA = {
     seed: seed, CATEGORIES: CATEGORIES, JOB_STATUS: JOB_STATUS,
     shinIcon: shinIcon, tinyIcon: tinyIcon, iconImg: iconImg,
-    iconFallback: iconFallback, artSvg: artSvg, ICON_DIR: ICON_DIR, ICON_KEYS: ICON_KEYS
+    iconFallback: iconFallback, artSvg: artSvg, ICON_DIR: ICON_DIR, ICON_KEYS: ICON_KEYS,
+    setIconMode: setIconMode, iconMode: iconMode
   };
 })(window);
