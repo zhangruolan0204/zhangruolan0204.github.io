@@ -237,7 +237,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v30';
+  QZ.VERSION = 'v31';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -689,7 +689,7 @@
     if (typeof XLSX !== 'undefined') return cb();
     QZ.toast('正在加载 Excel 解析组件…');
     var s = document.createElement('script');
-    s.src = 'vendor/xlsx.full.min.js?v=30';
+    s.src = 'vendor/xlsx.full.min.js?v=31';
     s.onload = cb;
     s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
     document.head.appendChild(s);
@@ -818,6 +818,165 @@
     QZ.toast('备份文件已下载');
   };
 
+  /* ============================================================
+   * 网申助手扩展桥接（可选增强：装了扩展才生效，没装完全不影响原有功能）
+   * 通信通道：window.postMessage（页面 ↔ 扩展 content script）
+   * 协议：所有消息带 __qzjaf:1，与飞书桥接的 qz-bridge-* 完全隔离
+   * ============================================================ */
+  QZ.jaf = {
+    ready: false,      // 是否检测到网申助手扩展
+    ver: '',           // 扩展版本号
+    ts: 0,             // 最近一次握手时间戳
+    lastMsg: ''        // 最近一条联动记录（显示在设置中心）
+  };
+
+  /* 网申档案字段：[扩展 key, 中文标签] */
+  QZ.JAF_FIELDS = [
+    ['name', '姓名'], ['gender', '性别'], ['birthday', '出生日期'], ['phone', '手机号'],
+    ['email', '邮箱'], ['idCard', '身份证号'], ['hometown', '籍贯'], ['address', '现居地址'],
+    ['school', '学校'], ['major', '专业'], ['degree', '学历'], ['graduationDate', '毕业时间'],
+    ['schoolType', '学校类型'], ['expectedCity', '期望城市'], ['expectedPosition', '期望岗位'],
+    ['selfEvaluation', '自我评价']
+  ];
+
+  function jafProfile() {
+    try {
+      if (!QZ.data.profile || typeof QZ.data.profile !== 'object') QZ.data.profile = {};
+    } catch (e) { QZ.data.profile = {}; }
+    return QZ.data.profile;
+  }
+  QZ.jaf.profile = jafProfile;
+
+  /** 向页面广播 ping，扩展若在运行会回 pong */
+  QZ.jaf.ping = function () {
+    try { window.postMessage({ __qzjaf: 1, type: 'ping' }, '*'); } catch (e) { }
+    return false;
+  };
+
+  /** 档案编辑：onchange 写入 QZ.data.profile */
+  QZ.jaf.setProfile = function (k, v) {
+    try { jafProfile()[k] = v; QZ.save(); } catch (e) { }
+  };
+
+  /** 把档案推给扩展（扩展收到后存入自己的 storage） */
+  QZ.jaf.syncProfile = function () {
+    try {
+      var p = jafProfile();
+      var n = Object.keys(p).filter(function (k) { return String(p[k] || '').trim() !== ''; }).length;
+      if (!n) { QZ.toast('档案还是空的，先填几项再同步'); return; }
+      window.postMessage({ __qzjaf: 1, type: 'syncProfile', profile: p }, '*');
+      QZ.toast('已推送档案（' + n + ' 项）给网申助手扩展');
+    } catch (e) { QZ.toast('推送失败：' + e.message); }
+  };
+
+  /** 导出档案 JSON（可在扩展选项页「导入」） */
+  QZ.jaf.exportProfile = function () {
+    try {
+      var out = { _type: 'jaf-profile', _from: '秋招工作台', _time: QZ.jaf.now(), profile: jafProfile() };
+      var blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '网申档案_' + QZ.today() + '.json';
+      a.click();
+      QZ.toast('档案已下载，可在扩展选项页导入');
+    } catch (e) { QZ.toast('导出失败：' + e.message); }
+  };
+
+  QZ.jaf.now = function () {
+    var d = new Date(), p = function (x) { return (x < 10 ? '0' : '') + x; };
+    return QZ.today() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  };
+
+  /* ---- 当前正在投递的岗位上下文（点「⚡网申」时写入） ---- */
+  QZ.jaf.setCtx = function (job) {
+    var ctx = { id: job.id, company: job.company || '', position: job.position || '', url: job.link || '', ts: Date.now() };
+    QZ._applyCtx = ctx;
+    try { localStorage.setItem('qz_apply_ctx', JSON.stringify(ctx)); } catch (e) { }
+    return ctx;
+  };
+  QZ.jaf.getCtx = function () {
+    if (QZ._applyCtx) return QZ._applyCtx;
+    try {
+      var s = localStorage.getItem('qz_apply_ctx');
+      if (s) return JSON.parse(s);
+    } catch (e) { }
+    return null;
+  };
+
+  function jafHost(u) {
+    try { var m = String(u || '').match(/^https?:\/\/([^\/]+)/i); return m ? m[1].toLowerCase() : ''; } catch (e) { return ''; }
+  }
+
+  /** 按 jobId → 链接域名 → 公司名 的顺序匹配岗位 */
+  QZ.jaf.findJob = function (d) {
+    d = d || {};
+    var jobs = QZ.data.jobs || [];
+    var ctx = QZ.jaf.getCtx();
+    var byId = d.jobId || (ctx && ctx.id) || '';
+    if (byId) {
+      var j0 = jobs.filter(function (x) { return String(x.id) === String(byId); })[0];
+      if (j0) return j0;
+    }
+    var h = jafHost(d.url);
+    if (h) {
+      var j1 = jobs.filter(function (x) { return x.link && jafHost(x.link) === h; })[0];
+      if (j1) return j1;
+    }
+    var c = String(d.company || (ctx && ctx.company) || '').trim();
+    if (c) {
+      var j2 = jobs.filter(function (x) {
+        return x.company && (String(x.company).indexOf(c) >= 0 || c.indexOf(String(x.company)) >= 0);
+      })[0];
+      if (j2) return j2;
+    }
+    return null;
+  };
+
+  /** 扩展填充完成 → 把对应岗位标成「已投递」 */
+  QZ.jaf.applyDone = function (d) {
+    try {
+      d = d || {};
+      var job = QZ.jaf.findJob(d);
+      if (!job) {
+        QZ.jaf.lastMsg = '收到填充结果，但没匹配到岗位（' + (d.company || d.url || '—') + '）';
+        if (QZ.page === 'settings') { try { QZ.render(); } catch (e) { } }
+        QZ.toast('网申助手已回填，但未匹配到岗位，可手动改状态');
+        return false;
+      }
+      var t = QZ.jaf.now();
+      job.status = '已投递';
+      if (!job.appliedAt) job.appliedAt = QZ.today();
+      var tag = '网申助手填充 ' + (d.filled || 0) + ' 项 · ' + t;
+      job.remark = (job.remark && job.remark !== '—' ? job.remark + ' ｜ ' : '') + tag;
+      QZ.save();
+      QZ.render();
+      QZ.jaf.lastMsg = job.company + ' → 已投递（' + t + '）';
+      QZ.toast('已回填：' + job.company + ' 标记「已投递」');
+      return true;
+    } catch (e) { QZ.jaf.lastMsg = '回填出错：' + e.message; return false; }
+  };
+
+  /** 解析回写串：QZRW1 + JSON（或 base64 后的 JSON） */
+  QZ.jaf.parseWriteback = function (text) {
+    try {
+      var s = String(text || '');
+      var i = s.indexOf('QZRW1');
+      if (i < 0) return null;
+      var rest = s.slice(i + 5).replace(/^[\s|:：]+/, '').trim();
+      try { return JSON.parse(rest); } catch (e) { }
+      try { return JSON.parse(atob(rest)); } catch (e2) { }
+      return null;
+    } catch (e) { return null; }
+  };
+
+  QZ.actions = QZ.actions || {};
+  QZ.actions.jafWriteback = function () {
+    var el = document.getElementById('jafWB');
+    var d = QZ.jaf.parseWriteback(el ? el.value : '');
+    if (!d) { QZ.toast('回写串格式不对（应包含 QZRW1）'); return; }
+    QZ.jaf.applyDone(d);
+  };
+
   /* ---------------- 登录 ---------------- */
   function doLogin(u, p) {
     var user = QZ.data.users.filter(function (x) { return x.username === u && x.password === p; })[0];
@@ -844,7 +1003,7 @@
     var f = QZ.actions[a];
     if (f) f(id, extra);
   };
-  QZ.actions = {};
+  QZ.actions = QZ.actions || {};   // 保留上方 jaf 模块已注册的动作
 
   document.addEventListener('DOMContentLoaded', function () {
     QZ.load();
@@ -904,6 +1063,28 @@
       }
     });
     window.postMessage({ type: 'qz-bridge-ping' }, '*');
+
+    /* 与「网申自动填充助手」扩展握手（可选，装了才生效） */
+    window.addEventListener('message', function (e) {
+      var d = e.data;
+      if (!d || !d.__qzjaf) return;                 // 只认本协议，不干扰飞书桥接
+      try {
+        if (d.type === 'pong') {
+          QZ.jaf.ready = true;
+          QZ.jaf.ver = d.v || '';
+          QZ.jaf.ts = Date.now();
+          if (QZ.page === 'settings') QZ.render();
+        } else if (d.type === 'fillDone') {
+          QZ.jaf.applyDone(d);
+        } else if (d.type === 'profileAck') {
+          QZ.jaf.lastMsg = '档案已同步到扩展 v' + (d.v || '') + '（' + QZ.jaf.now() + '）';
+          QZ.toast('档案已同步到扩展');
+          if (QZ.page === 'settings') QZ.render();
+        }
+      } catch (err) { }
+    });
+    QZ.jaf.ping();
+    setInterval(function () { try { QZ.jaf.ping(); } catch (e) { } }, 20000);
 
     QZ.render();
 
