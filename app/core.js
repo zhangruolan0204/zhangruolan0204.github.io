@@ -237,7 +237,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v31';
+  QZ.VERSION = 'v32';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -689,7 +689,7 @@
     if (typeof XLSX !== 'undefined') return cb();
     QZ.toast('正在加载 Excel 解析组件…');
     var s = document.createElement('script');
-    s.src = 'vendor/xlsx.full.min.js?v=31';
+    s.src = 'vendor/xlsx.full.min.js?v=32';
     s.onload = cb;
     s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
     document.head.appendChild(s);
@@ -967,6 +967,84 @@
       try { return JSON.parse(atob(rest)); } catch (e2) { }
       return null;
     } catch (e) { return null; }
+  };
+
+  QZ.actions = QZ.actions || {};
+
+  /* 档案字段中文名（简历识别结果展示用） */
+  var JAF_LABEL = {
+    name: '姓名', namePinyin: '姓名拼音', gender: '性别', birthday: '出生日期', age: '年龄',
+    idCard: '身份证号', nation: '民族', politicalStatus: '政治面貌', hometown: '籍贯',
+    height: '身高', weight: '体重', phone: '手机号', email: '邮箱', wechat: '微信', qq: 'QQ',
+    address: '现居地址', postalCode: '邮编', homepage: '主页', school: '学校', major: '专业',
+    degree: '学历', degreeType: '学历类型', educationStart: '入学时间', graduationDate: '毕业时间',
+    gpa: 'GPA', rank: '排名', schoolType: '学校类型', englishLevel: '英语水平', cetScore: '英语成绩',
+    schoolExperience: '校园经历', expectedCity: '期望城市', expectedPosition: '期望岗位',
+    expectedSalary: '期望薪资', availableDate: '可到岗时间', internTime: '可实习时间',
+    jobType: '招聘类型', referrer: '内推', selfEvaluation: '自我评价', skills: '技能',
+    awards: '获奖', projectExperience: '项目经历', internship: '实习经历', careerPlan: '职业规划',
+    whyUs: '应聘原因'
+  };
+  QZ.jaf.labelOf = function (k) {
+    for (var i = 0; i < (QZ.JAF_FIELDS || []).length; i++) {
+      if (QZ.JAF_FIELDS[i][0] === k) return QZ.JAF_FIELDS[i][1];
+    }
+    return JAF_LABEL[k] || k;
+  };
+
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /** 从粘贴的简历文本识别档案字段（本机解析，不上传） */
+  QZ.actions.jafParseResume = function (previewOnly) {
+    try {
+      var ta = document.getElementById('jafResume');
+      var text = ta ? ta.value : '';
+      if (!String(text || '').trim()) { QZ.toast('请先粘贴简历文本，或选择 .txt / .md / .docx 文件'); return; }
+      var P = window.ResumeParser;
+      if (!P || !P.parse) { QZ.toast('解析组件未加载，请刷新页面重试'); return; }
+      var r = P.parse(text);
+      if (!r || !r.count) { QZ.toast('没有识别到字段，确认粘贴的是完整简历文本'); return; }
+      var keys = Object.keys(r.fields);
+      QZ.jaf.lastParse = '<div class="note teal">识别到 <b>' + keys.length + '</b> 项（' +
+        escHtml(keys.slice(0, 6).map(QZ.jaf.labelOf).join('、')) + (keys.length > 6 ? ' 等' : '') + '）</div>' +
+        '<div class="table-wrap" style="margin-top:6px"><table style="min-width:420px"><thead><tr><th>字段</th><th>识别到的内容</th></tr></thead><tbody>' +
+        keys.map(function (k) {
+          return '<tr><td class="nowrap">' + escHtml(QZ.jaf.labelOf(k)) + '</td><td>' +
+            escHtml(String(r.fields[k]).replace(/\n/g, ' ⏎ ').slice(0, 80)) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+      if (previewOnly) {
+        QZ.render();
+        QZ.toast('识别到 ' + keys.length + ' 项，点「识别并填入档案」写入');
+        return;
+      }
+      var p = jafProfile();
+      keys.forEach(function (k) { p[k] = r.fields[k]; });
+      QZ.save();
+      QZ.render();
+      QZ.toast('已写入 ' + keys.length + ' 项档案，核对后点「同步档案到扩展」');
+    } catch (e) { QZ.toast('识别失败：' + e.message); }
+  };
+
+  /** 选择简历文件（txt / md / docx）→ 读入文本框 */
+  QZ.actions.jafResumeFile = function () {
+    try {
+      var f = document.getElementById('jafResumeFile');
+      var file = f && f.files && f.files[0];
+      if (!file) return;
+      var P = window.ResumeParser;
+      if (!P || !P.readFile) { QZ.toast('解析组件未加载，请刷新页面重试'); return; }
+      P.readFile(file).then(function (t) {
+        var ta = document.getElementById('jafResume');
+        if (ta) ta.value = t;
+        QZ.toast('已读取 ' + file.name + '（' + t.length + ' 字），点「识别并填入档案」');
+      }).catch(function (e) {
+        QZ.toast((e && e.message) || '读取失败，请把内容复制粘贴到文本框');
+      });
+    } catch (e) { QZ.toast('读取失败：' + e.message); }
   };
 
   QZ.actions = QZ.actions || {};
