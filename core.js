@@ -237,7 +237,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v32';
+  QZ.VERSION = 'v33';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -1045,6 +1045,33 @@
         QZ.toast((e && e.message) || '读取失败，请把内容复制粘贴到文本框');
       });
     } catch (e) { QZ.toast('读取失败：' + e.message); }
+  };
+
+  /** 粘贴档案 JSON 导入（与扩展选项页「导入 JSON」同一份格式） */
+  QZ.actions.jafImportProfile = function () {
+    try {
+      var el = document.getElementById('jafImportJson');
+      var s = String((el && el.value) || '').trim();
+      if (!s) { QZ.toast('先粘贴档案 JSON（或点「导出档案 JSON」看格式）'); return; }
+      var obj;
+      try { obj = JSON.parse(s); } catch (e1) { QZ.toast('JSON 解析失败：' + e1.message); return; }
+      var p = (obj && obj.profile && typeof obj.profile === 'object') ? obj.profile : obj;
+      if (!p || typeof p !== 'object') { QZ.toast('没找到档案内容'); return; }
+      var cur = jafProfile(), n = 0;
+      Object.keys(p).forEach(function (k) {
+        if (k.charAt(0) === '_') return;
+        var v = p[k];
+        if (v == null || typeof v === 'object') return;
+        var sv = String(v);
+        if (!sv.trim()) return;        /* 留空的字段不动，避免覆盖已有内容 */
+        cur[k] = sv;
+        n++;
+      });
+      QZ.save();
+      QZ.jaf.lastMsg = '已导入 ' + n + ' 项档案';
+      QZ.render();
+      QZ.toast('已导入 ' + n + ' 项，核对后可点「同步档案到扩展」');
+    } catch (e) { QZ.toast('导入失败：' + e.message); }
   };
 
   QZ.actions = QZ.actions || {};
