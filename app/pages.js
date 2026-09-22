@@ -155,7 +155,14 @@
   QZ.setFilter = function (page, key, val) {
     QZ.filters[page] = QZ.filters[page] || {};
     QZ.filters[page][key] = val;
+    if (page === 'jobs' && key !== 'page') QZ.filters.jobs.page = 1; // 筛选条件变化后回到第 1 页
     QZ.render();
+  };
+  QZ.setPage = function (page, n) {
+    QZ.filters[page] = QZ.filters[page] || {};
+    QZ.filters[page].page = n;
+    QZ.render();
+    try { window.scrollTo(0, 0); } catch (e) { }
   };
   QZ.actions.jobStatus = function (id, val) {
     if (!QZ.canEdit()) { QZ.toast('只读账号不可修改'); QZ.render(); return; }
@@ -301,7 +308,7 @@
 
   /* =============== 2. 岗位投递库 =============== */
   function pageJobs() {
-    var f = QZ.filters.jobs || (QZ.filters.jobs = { status: '', category: '', kw: '' });
+    var f = QZ.filters.jobs || (QZ.filters.jobs = { status: '', category: '', kw: '', page: 1 });
     var list = QZ.data.jobs.filter(function (x) {
       if (f.status && x.status !== f.status) return false;
       if (f.category && x.category !== f.category) return false;
@@ -318,22 +325,31 @@
       QZ.statCard(cnt('已结束') + cnt('待投递'), '待投 / 结束', '及时补投，保持每日 2 个', 'flag') +
       '</div>';
 
+    /* 分页：一次只渲染 50 行，避免 9000+ 行 DOM 卡死 */
+    var PAGE_SIZE = 50;
+    var page = Math.max(1, parseInt(f.page, 10) || 1);
+    var totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+    if (page > totalPages) page = totalPages;
+    f.page = page;
+    var start = (page - 1) * PAGE_SIZE;
+    var rows = list.slice(start, start + PAGE_SIZE);
+    var statusOptions = '<option value="">全部</option>' + D.JOB_STATUS.map(function (s) {
+      return '<option' + (f.status === s ? ' selected' : '') + '>' + s + '</option>';
+    }).join('');
+    var categoryOptions = '<option value="">全部</option>' + D.CATEGORIES.map(function (s) {
+      return '<option' + (f.category === s ? ' selected' : '') + '>' + s + '</option>';
+    }).join('');
+
     html += QZ.card({
       icon: 'job', title: '岗位投递库', desc: '企业、岗位、方向、渠道、内推、状态全字段记录，支持筛选与进度标记',
       tools: addBtn('jobs', '新增岗位'),
       body: '<div class="filters" style="margin-bottom:12px">' +
-        '<label>状态</label><select onchange="QZ.setFilter(\'jobs\',\'status\',this.value)">' +
-        '<option value="">全部</option>' + D.JOB_STATUS.map(function (s) {
-          return '<option' + (f.status === s ? ' selected' : '') + '>' + s + '</option>';
-        }).join('') + '</select>' +
-        '<label>方向</label><select onchange="QZ.setFilter(\'jobs\',\'category\',this.value)">' +
-        '<option value="">全部</option>' + D.CATEGORIES.map(function (s) {
-          return '<option' + (f.category === s ? ' selected' : '') + '>' + s + '</option>';
-        }).join('') + '</select>' +
+        '<label>状态</label><select onchange="QZ.setFilter(\'jobs\',\'status\',this.value)">' + statusOptions + '</select>' +
+        '<label>方向</label><select onchange="QZ.setFilter(\'jobs\',\'category\',this.value)">' + categoryOptions + '</select>' +
         '<input placeholder="搜索企业 / 岗位 / 城市" value="' + esc(f.kw) + '" onchange="QZ.setFilter(\'jobs\',\'kw\',this.value)">' +
         '<span class="chip">共 ' + list.length + ' 条</span></div>' +
         QZ.table(['企业', '岗位 / 方向', '城市', '渠道 / 内推', '投递时间', '状态（可切换）', '薪资', '备注', '操作'],
-          list.map(function (x) {
+          rows.map(function (x) {
             return '<tr><td class="nowrap"><b>' + esc(x.company) + '</b><br>' + linkBtn(x.link) + '</td>' +
               '<td>' + esc(x.position) + '<br><span class="tag">' + esc(x.category) + '</span></td>' +
               '<td class="nowrap">' + esc(x.city) + '</td>' +
@@ -344,7 +360,8 @@
               '<td class="nowrap">' + esc(x.salary || '—') + '</td>' +
               '<td style="max-width:220px">' + esc(x.remark || '—') + '</td>' +
               '<td class="nowrap">' + editBtn('jobs', x.id) + ' ' + delBtn('jobs', x.id) + '</td></tr>';
-          }))
+          })) +
+        (list.length > PAGE_SIZE ? renderPager('jobs', page, totalPages, list.length, PAGE_SIZE) : '')
     });
 
     html += '<div class="grid grid-2" style="margin-top:14px">' +
@@ -369,6 +386,24 @@
       }) + '</div>';
     return html;
   }
+
+  /* 分页控件：pageKey 用于 QZ.setPage */
+  function renderPager(pageKey, page, totalPages, total, pageSize) {
+    var opts = '';
+    for (var i = 1; i <= totalPages; i++) {
+      opts += '<option value="' + i + '"' + (i === page ? ' selected' : '') + '>' + i + '</option>';
+    }
+    return '<div class="pager">' +
+      '<button class="btn btn-ghost btn-sm"' + (page <= 1 ? ' disabled' : ' onclick="QZ.setPage(\'' + pageKey + '\',1)"') + '>首页</button>' +
+      '<button class="btn btn-ghost btn-sm"' + (page <= 1 ? ' disabled' : ' onclick="QZ.setPage(\'' + pageKey + '\',' + (page - 1) + ')"') + '>上一页</button>' +
+      '<span class="chip">第 ' + page + ' / ' + totalPages + ' 页</span>' +
+      '<span class="chip">共 ' + total + ' 条，每页 ' + pageSize + ' 条</span>' +
+      '<select class="chip" onchange="QZ.setPage(\'' + pageKey + '\',parseInt(this.value,10))">' + opts + '</select>' +
+      '<button class="btn btn-ghost btn-sm"' + (page >= totalPages ? ' disabled' : ' onclick="QZ.setPage(\'' + pageKey + '\',' + (page + 1) + ')"') + '>下一页</button>' +
+      '<button class="btn btn-ghost btn-sm"' + (page >= totalPages ? ' disabled' : ' onclick="QZ.setPage(\'' + pageKey + '\',' + totalPages + ')"') + '>末页</button>' +
+      '</div>';
+  }
+
   function OfferSalary() {
     var o = QZ.data.offers;
     return o.length ? '最高 ' + (o.map(function (x) { return x.salary; })[0] || '—') : '继续加油';
