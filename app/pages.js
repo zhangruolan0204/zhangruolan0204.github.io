@@ -206,6 +206,18 @@
     return '<a class="btn btn-soft btn-sm" href="' + esc(url) + '" target="_blank" rel="noopener">' + tiny('link', 13) + '打开</a>';
   }
 
+  /* 岗位行里的「适配分」单元格：取该岗位最近一次分析报告 */
+  function fitCell(id) {
+    try {
+      var arr = (QZ.data.fitReports && QZ.data.fitReports[id]) || [];
+      if (!arr.length) return '<span class="muted" style="font-size:12px">未分析</span>';
+      var r = arr[0];
+      var cls = r.level === '高度推荐' ? 'green' : (r.level === '可以投递' ? 'blue' : (r.level === '谨慎投递' ? 'yellow' : 'red'));
+      return '<button class="btn btn-ghost btn-sm" style="padding:2px 6px" title="查看该岗位分析报告" onclick="QZ.actions.jobFit(\'' + id + '\')">' +
+        '<span class="chip ' + cls + '">' + r.score + ' · ' + esc(r.level) + '</span></button>';
+    } catch (e) { return '<span class="muted">—</span>'; }
+  }
+
   /* =============== 1. 首页总览 =============== */
   function pageDashboard() {
     var j = QZ.data.jobs, e = QZ.data.exams, iv = QZ.data.interviews, t = QZ.data.todos, o = QZ.data.offers;
@@ -319,6 +331,11 @@
     });
     var n = QZ.data.jobs.length;
     var cnt = function (s) { return QZ.data.jobs.filter(function (x) { return x.status === s; }).length; };
+    /* 适配分排序（需要先跑过分析） */
+    var fitStore = QZ.data.fitReports || {};
+    var fitScoreOf = function (id) { var a = fitStore[id]; return (a && a[0]) ? a[0].score : -1; };
+    if (f.sort === 'score') list = list.slice().sort(function (a, b) { return fitScoreOf(b.id) - fitScoreOf(a.id); });
+    QZ._jobsView = list;
 
     var html = '<div class="grid grid-4" style="margin-bottom:14px">' +
       QZ.statCard(n, '投递总数', '覆盖 ' + new Set(QZ.data.jobs.map(function (x) { return x.company; })).size + ' 家企业', 'job') +
@@ -348,13 +365,17 @@
 
     html += QZ.card({
       icon: 'job', title: '岗位投递库', desc: '企业、岗位、方向、渠道、内推、状态全字段记录，支持筛选与进度标记',
-      tools: addBtn('jobs', '新增岗位'),
+      tools: addBtn('jobs', '新增岗位') +
+        ' <button class="btn btn-soft btn-sm" title="对本页筛选出的岗位一次性跑离线分析，结果存进各岗位历史" onclick="QZ.actions.jobFitBatch()">批量分析（' + list.length + '）</button>',
       body: '<div class="filters" style="margin-bottom:12px">' +
         '<label>状态</label><select onchange="QZ.setFilter(\'jobs\',\'status\',this.value)">' + statusOptions + '</select>' +
         '<label>方向</label><select onchange="QZ.setFilter(\'jobs\',\'category\',this.value)">' + categoryOptions + '</select>' +
+        '<label>排序</label><select onchange="QZ.setFilter(\'jobs\',\'sort\',this.value)">' +
+        '<option value=""' + (!f.sort ? ' selected' : '') + '>默认</option>' +
+        '<option value="score"' + (f.sort === 'score' ? ' selected' : '') + '>适配分高→低</option></select>' +
         '<input placeholder="搜索企业 / 岗位 / 城市" value="' + esc(f.kw) + '" onchange="QZ.setFilter(\'jobs\',\'kw\',this.value)">' +
         '<span class="chip">共 ' + list.length + ' 条</span></div>' +
-        QZ.table(['企业', '岗位 / 方向', '城市', '渠道 / 内推', '更新时间', '投递截止', '状态（可切换）', '薪资', '备注', '操作'],
+        QZ.table(['企业', '岗位 / 方向', '城市', '渠道 / 内推', '更新时间', '投递截止', '状态（可切换）', '薪资', '备注', '适配', '操作'],
           rows.map(function (x) {
             return '<tr><td class="nowrap"><b>' + esc(x.company) + '</b><br>' + linkBtn(x.link) + '</td>' +
               '<td>' + esc(x.position) + '<br><span class="tag">' + esc(x.category || '—') + '</span></td>' +
@@ -366,6 +387,7 @@
               D.JOB_STATUS.map(function (s) { return '<option' + (x.status === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></td>' +
               '<td class="nowrap">' + esc(x.salary || '—') + '</td>' +
               '<td style="max-width:220px">' + esc(x.remark || '—') + '</td>' +
+              '<td class="nowrap">' + fitCell(x.id) + '</td>' +
               '<td class="nowrap">' + editBtn('jobs', x.id) + ' ' + delBtn('jobs', x.id) +
               ' <button class="btn btn-primary btn-sm" title="读取本机简历档案与该岗位 JD，分析适配度" onclick="QZ.actions.jobFit(\'' + x.id + '\')">岗位适配分析</button>' +
               (x.link ? ' <button class="btn btn-soft btn-sm" title="打开投递页并交给网申助手自动填充" onclick="QZ.actions.jafApply(\'' + x.id + '\')">⚡网申</button>' : '') + '</td></tr>';
@@ -1020,7 +1042,8 @@
         '<span class="chip ' + (aiCfg.key && aiCfg.on !== false ? 'blue' : 'gray') + '">' +
         (aiCfg.key && aiCfg.on !== false ? '当前：AI 深度分析（失败自动回落离线）' : '当前：离线关键词分析') + '</span>' +
         '<span class="chip gray">简历档案 ' + Object.keys(QZ.data.profile || {}).filter(function (k) { return String(QZ.data.profile[k] || '').trim(); }).length + ' 项</span>' +
-        '<span class="chip gray">历史报告 ' + Object.keys(QZ.data.fitReports || {}).reduce(function (a, k) { return a + ((QZ.data.fitReports[k] || []).length); }, 0) + ' 份</span></div>' +
+        '<span class="chip gray">历史报告 ' + Object.keys(QZ.data.fitReports || {}).reduce(function (a, k) { return a + ((QZ.data.fitReports[k] || []).length); }, 0) + ' 份</span>' +
+        '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.fitClear()">清空报告</button></div>' +
         '<div class="modal-grid">' +
         '<div class="full" style="margin-bottom:8px"><div style="font-size:12.5px;color:var(--text-2);margin-bottom:4px">API Key（留空即全程离线）</div>' +
         '<input type="password" value="' + esc(aiCfg.key || '') + '" placeholder="sk-xxxxxxxx" onchange="QZ.actions.aiSet(\'key\',this.value)" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:12px;background:#FCFBF8"></div>' +
@@ -1032,7 +1055,7 @@
         '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin-top:4px">' +
         '<input type="checkbox"' + (aiCfg.on !== false ? ' checked' : '') + ' onchange="QZ.actions.aiSet(\'on\',this.checked)">启用 AI 深度分析（关闭则始终离线）</label>' +
         '<div class="note" style="margin-top:10px"><b>隐私</b>：Key 只存在你本机浏览器，不会同步到任何服务器；只有点「开始适配分析」且填了 Key 时，简历档案与该岗位 JD 才会发给你填的这家 API。离线模式下所有计算都在浏览器里完成，完全不出网。</div>' +
-        '<div class="note teal" style="margin-top:8px"><b>怎么用</b>：岗位投递库任意一行 → 点「岗位适配分析」→ 核对 JD（可粘贴真实 JD 后保存）→ 点「开始适配分析」→ 得到 0~100 适配总分、匹配亮点、能力短板、岗位通俗解读与投递建议，报告自动存进该岗位的历史记录。</div>'
+        '<div class="note teal" style="margin-top:8px"><b>怎么用</b>：岗位投递库 → 先点右上角 <b>「批量分析（N）」</b> 给当前筛选出的岗位一次性跑完（离线、不出网，几百条约 1 秒），再用排序 <b>「适配分高→低」</b> 挑岗位，点每行的分数可看详情；某条岗位粘了真实 JD 后再单独点「开始适配分析」，分数会精确到具体能力项。</div>'
     });
 
     var aboutCard = QZ.card({
