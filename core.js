@@ -237,19 +237,47 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 诊断胶囊：显示实际运行的版本与模块数，出错时显示错误原文 */
-  QZ.VERSION = 'v24';
+  QZ.VERSION = 'v25';
   function paintDiag(txt, bad) {
+    var line = QZ.VERSION + ' · 当前 ' + QZ.page + ' · ' + QZ.pages.length + ' 模块' + (txt ? ' · ' + txt : '');
+    try {
+      var vb = document.getElementById('verbarTxt');
+      if (vb) vb.textContent = bad ? (QZ.VERSION + ' · 错误：' + txt) : line;
+      var bar = document.getElementById('verbar');
+      if (bar && bad) bar.style.background = '#ff4d4f';
+    } catch (e) { }
     try {
       var d = document.getElementById('diag');
       if (!d) return;
       if (bad) { QZ.__bad = 1; d.className = 'diag-pill bad'; d.textContent = txt; d.style.display = 'block'; return; }
       if (QZ.__bad) return;
       d.className = 'diag-pill';
-      d.textContent = QZ.VERSION + ' · 当前 ' + QZ.page + ' · ' + QZ.pages.length + ' 模块' + (txt ? ' · ' + txt : '');
+      d.textContent = line;
       d.style.display = 'block';
     } catch (e) { }
   }
   QZ.paintDiag = paintDiag;
+
+  /* 一键清缓存重载：清 CacheStorage + 注销全部 SW + 带时间戳重载（保留本地数据） */
+  QZ.hardReset = function () {
+    function go() {
+      try { location.replace(location.pathname + '?hr=' + Date.now()); }
+      catch (e) { location.reload(); }
+    }
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        navigator.serviceWorker.getRegistrations().then(function (rs) {
+          rs.forEach(function (r) { r.unregister(); });
+        }).catch(function () { });
+      }
+      if (window.caches && caches.keys) {
+        caches.keys().then(function (ks) {
+          return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+        }).then(go, go);
+      } else { go(); }
+    } catch (e) { go(); }
+    return false;
+  };
 
   /* 菜单点击入口（内联 onclick 走这条），打标记避免与事件委托重复渲染一次 */
   QZ.navGo = function (e, id) {
@@ -641,7 +669,7 @@
     if (typeof XLSX !== 'undefined') return cb();
     QZ.toast('正在加载 Excel 解析组件…');
     var s = document.createElement('script');
-    s.src = 'vendor/xlsx.full.min.js?v=24';
+    s.src = 'vendor/xlsx.full.min.js?v=25';
     s.onload = cb;
     s.onerror = function () { QZ.toast('Excel 组件加载失败，请检查网络后重试'); };
     document.head.appendChild(s);
