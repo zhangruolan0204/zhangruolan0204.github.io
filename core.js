@@ -7,6 +7,9 @@
   var D = global.QZ_DATA;
   var KEY = 'qz2027_workbench_v3';
   var SESSION = 'qz2027_session_v3';
+  var ICON_MODE_KEY = 'qz_icon_mode';
+  /* 启动时立刻应用图标模式，避免登录页图标也去发 404 请求 */
+  try { if (D && D.setIconMode) D.setIconMode(localStorage.getItem(ICON_MODE_KEY) === 'img' ? 'img' : 'svg'); } catch (e) { }
 
   var QZ = {
     data: null,
@@ -26,6 +29,18 @@
   };
   QZ.shin = function (n, s) { return D.shinIcon(n, s); };
   QZ.tiny = function (n, s, c) { return D.tinyIcon(n, s, c); };
+  /* 图标模式：默认纯 SVG（零图片请求）。用户放好自定义 PNG 后可在设置中心切换成 img */
+  QZ.iconMode = function (m) {
+    try {
+      if (m === undefined || m === null) {
+        return localStorage.getItem(ICON_MODE_KEY) === 'img' ? 'img' : 'svg';
+      }
+      var v = (m === 'img') ? 'img' : 'svg';
+      localStorage.setItem(ICON_MODE_KEY, v);
+      if (D && D.setIconMode) D.setIconMode(v);
+      return v;
+    } catch (e) { return 'svg'; }
+  };
   QZ.uid = function () { return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
   QZ.today = function () {
     var d = new Date(), p = function (n) { return n < 10 ? '0' + n : '' + n; };
@@ -237,7 +252,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v35';
+  QZ.VERSION = 'v36';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -1329,6 +1344,18 @@
       QZ.save(); QZ.render();
       QZ.toast('已清空 ' + n + ' 份分析报告');
     } catch (e) { QZ.toast('清空失败：' + e.message); }
+  };
+
+  /** 切换图标模式：svg = 原创手绘（默认，零请求）；img = 先找 assets/icons/*.png */
+  QZ.actions = QZ.actions || {};
+  QZ.actions.setIconMode = function (m) {
+    try {
+      var v = QZ.iconMode(m);
+      QZ.render();
+      QZ.toast(v === 'img'
+        ? '已切换为自定义图片模式：缺失的图标会自动回退原创手绘图标'
+        : '已切换为原创手绘图标模式：不发任何图片请求，加载最快、不会闪');
+    } catch (e) { QZ.toast('切换失败：' + e.message); }
   };
 
   QZ.actions = QZ.actions || {};
