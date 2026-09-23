@@ -252,7 +252,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v41';
+  QZ.VERSION = 'v42';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -1453,6 +1453,8 @@
         QZ.files[String(id)] = 1;
         QZ.save(); QZ.render();
         QZ.toast('已保存 PDF（' + fmtSize(file.size) + '）：' + file.name);
+        /* 存完自动提取一次文字，省得再点一次 */
+        setTimeout(function () { try { QZ.actions.resumeExtract(id); } catch (e) { } }, 700);
       }).catch(function (e) { QZ.toast('保存失败：' + ((e && e.message) || '未知错误')); });
     } catch (e) { QZ.toast('上传失败：' + e.message); }
   };
@@ -1482,6 +1484,75 @@
         document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
       } catch (e) { QZ.toast('下载失败：' + e.message); }
+    });
+  };
+
+  /** 从 PDF 里提取文字（本机 pdf.js 解析，不出网） */
+  QZ.actions.resumeExtract = function (id) {
+    var rec = resumeRec(id);
+    if (!rec) { QZ.toast('简历记录不存在'); return; }
+    if (!global.QzPdfText || !global.QzPdfText.extract) { QZ.toast('PDF 解析组件未加载，请刷新页面重试'); return; }
+    QZ.toast('正在提取 PDF 文字（首次需加载解析库，约 1–2 秒）…');
+    withBlob(id, function (r) {
+      global.QzPdfText.extract(r.blob).then(function (out) {
+        var t = String((out && out.text) || '').trim();
+        if (t.length < 30) {
+          QZ.toast('这份 PDF 没提取到文字（多为扫描件 / 图片版）。请到设置中心网申助手卡片粘贴简历文本，或换成文字版 PDF');
+          return;
+        }
+        rec.text = t.slice(0, 20000);
+        rec.textPages = out.pages || 1;
+        rec.textAt = QZ.today();
+        QZ.save(); QZ.render();
+        QZ.toast('已提取 ' + t.length + ' 字（' + (out.pages || 1) + ' 页）');
+        QZ.actions.resumeShowText(id);
+      }).catch(function (e) {
+        QZ.toast('提取失败：' + ((e && e.message) || '未知错误'));
+      });
+    });
+  };
+
+  /** 查看提取到的文字，并可一键写入档案 */
+  QZ.actions.resumeShowText = function (id) {
+    var rec = resumeRec(id);
+    if (!rec) { QZ.toast('简历记录不存在'); return; }
+    var t = String(rec.text || '');
+    if (!t) { QZ.toast('还没提取文字，先点「提取 PDF 文字」'); return; }
+    var P = global.ResumeParser, parsed = null, keys = [];
+    if (P && P.parse) { try { parsed = P.parse(t); keys = Object.keys((parsed && parsed.fields) || {}); } catch (e) { } }
+    var rows = '';
+    if (keys.length) {
+      rows = '<div class="table-wrap" style="margin-top:8px"><table style="min-width:420px"><thead><tr><th>字段</th><th>识别到的内容</th></tr></thead><tbody>' +
+        keys.map(function (k) {
+          var label = (QZ.jaf && QZ.jaf.labelOf) ? QZ.jaf.labelOf(k) : k;
+          return '<tr><td class="nowrap">' + QZ.esc(label) + '</td><td>' +
+            QZ.esc(String(parsed.fields[k]).replace(/\n/g, ' ⏎ ').slice(0, 90)) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    var html = '<div class="note teal">共 <b>' + t.length + '</b> 字' + (rec.textPages ? '（' + rec.textPages + ' 页）' : '') +
+      '，' + (keys.length ? '自动识别到 <b>' + keys.length + '</b> 项档案字段' : '未识别到字段（多为图片版或排版特殊）') + '</div>' + rows +
+      '<div style="font-size:12.5px;color:var(--text-2);margin:10px 0 4px">提取到的原文（可复制出来手动核对）</div>' +
+      '<textarea rows="8" readonly style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:12px;background:#FCFBF8;font-size:12px;line-height:1.6">' + QZ.esc(t.slice(0, 3000)) + '</textarea>' +
+      (keys.length ? '<div style="margin-top:10px"><button class="btn btn-primary btn-sm" data-actx="profile">写入我的档案（' + keys.length + ' 项）</button>' +
+        '<span class="muted" style="font-size:12px;margin-left:8px">只写入识别到的字段，已有内容会被覆盖</span></div>' : '');
+    QZ.modal({
+      title: 'PDF 文字提取结果 · ' + QZ.esc(rec.name || ''),
+      desc: '在本机浏览器里解析，PDF 不会上传到任何服务器',
+      html: html,
+      cancelText: '关闭',
+      onExtra: function (act) {
+        if (act !== 'profile') return;
+        try {
+          var PP = global.ResumeParser;
+          if (!PP || !PP.parse) { QZ.toast('解析组件未加载'); return; }
+          var r = PP.parse(t), ks = Object.keys((r && r.fields) || {});
+          if (!ks.length) { QZ.toast('没识别到字段'); return; }
+          var p = jafProfile();
+          ks.forEach(function (k) { p[k] = r.fields[k]; });
+          QZ.save();
+          QZ.toast('已写入 ' + ks.length + ' 项档案；到设置中心网申助手卡片核对，再同步给扩展');
+        } catch (e) { QZ.toast('写入失败：' + e.message); }
+      }
     });
   };
 
