@@ -610,25 +610,45 @@
   /* =============== 5. 简历版本库 =============== */
   function pageResumes() {
     var list = QZ.data.resumes;
+    var hasFile = function (id) { return !!(QZ.files && QZ.files[String(id)]); };
+    var fileCount = list.filter(function (x) { return hasFile(x.id); }).length;
+    var fileSize = list.reduce(function (s, x) { return s + (hasFile(x.id) ? (Number(x.fileSize) || 0) : 0); }, 0);
     var html = '<div class="grid grid-3" style="margin-bottom:14px">' +
       QZ.statCard(list.length, '简历版本', '一岗一版，避免一份简历投所有', 'resume') +
-      QZ.statCard(list[0] ? list[0].version : '—', '主推版本号', list[0] ? list[0].name : '', 'star') +
+      QZ.statCard(fileCount, '已上传 PDF', fileCount ? '本机共 ' + QZ.fmtSize(fileSize) + '，不上传服务器' : '还没上传，点卡片里「上传 PDF」', 'doc') +
       QZ.statCard(list.filter(function (x) { return (x.updatedAt || '') >= QZ.today().slice(0, 8) + '01'; }).length, '本月更新次数', '建议每周迭代一次', 'refresh') +
       '</div>';
 
     html += QZ.card({
-      icon: 'resume', title: '多版本简历存档', desc: '不同岗位方向使用不同版本，记录每次优化点',
-      tools: addBtn('resumes', '新增版本'),
-      body: '<div class="grid grid-2">' + list.map(function (x) {
-        return '<div class="sub-card" style="background:#fff;border:1px solid var(--border)">' +
-          '<div style="display:flex;align-items:flex-start;gap:10px">' + shin('resume', 40) +
-          '<div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:600">' + esc(x.name) + '</div>' +
-          '<div style="font-size:11.5px;color:var(--muted);margin-top:2px">适配方向：' + esc(x.target) + ' · 更新于 ' + esc(x.updatedAt) + '</div></div></div>' +
-          '<div style="font-size:12px;color:var(--text-2);margin-top:8px"><b>核心亮点：</b>' + esc(x.highlight || '—') + '</div>' +
-          '<div style="font-size:12px;color:var(--text-2);margin-top:4px"><b>使用场景：</b>' + esc(x.note || '—') + '</div>' +
-          '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">' + linkBtn(x.link) + editBtn('resumes', x.id) + delBtn('resumes', x.id) + '</div>' +
-          '</div>';
-      }).join('') + '</div>'
+      icon: 'resume', title: '多版本简历存档（支持上传 PDF）', desc: '每个版本可以存一份 PDF 原件，投递时直接下载；文件只存在你本机浏览器里，不上传任何服务器',
+      tools: '<label class="btn btn-primary btn-sm" style="margin:0">' + tiny('upload', 13) + '上传 PDF 建新版本' +
+        '<input type="file" accept="application/pdf,.pdf" style="display:none" onchange="QZ.actions.resumeNewFromFile(this.files[0]); this.value=\'\'"></label>' +
+        addBtn('resumes', '新增版本'),
+      body: '<div class="note teal" style="margin-bottom:10px"><b>怎么用</b>：先「新增版本」建一条记录 → 在卡片里点 <b>「上传 PDF」</b> 选中本地简历文件 → 之后可随时「预览 / 下载 / 替换 / 删除文件」。同一 id 重复上传会自动覆盖成最新版。</div>' +
+        '<div class="grid grid-2">' + list.map(function (x) {
+          var has = hasFile(x.id);
+          return '<div class="sub-card" style="background:#fff;border:1px solid var(--border)">' +
+            '<div style="display:flex;align-items:flex-start;gap:10px">' + shin('resume', 40) +
+            '<div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:600">' + esc(x.name) + '</div>' +
+            '<div style="font-size:11.5px;color:var(--muted);margin-top:2px">适配方向：' + esc(x.target) + ' · 更新于 ' + esc(x.updatedAt) + '</div></div></div>' +
+            '<div style="font-size:12px;color:var(--text-2);margin-top:8px"><b>核心亮点：</b>' + esc(x.highlight || '—') + '</div>' +
+            '<div style="font-size:12px;color:var(--text-2);margin-top:4px"><b>使用场景：</b>' + esc(x.note || '—') + '</div>' +
+            '<div style="margin-top:8px;padding:8px 10px;border:1px dashed var(--border);border-radius:10px;background:#FCFBF8">' +
+            (has
+              ? '<div style="font-size:12.5px"><b>已存 PDF：</b>' + esc(x.fileName || '简历.pdf') +
+              ' <span class="muted">· ' + QZ.fmtSize(x.fileSize) + ' · ' + esc(x.fileAt || '') + '</span></div>'
+              : '<div style="font-size:12.5px;color:var(--muted)">还没上传 PDF 原件（可选，也可以只填网盘链接）</div>') +
+            '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">' +
+            '<label class="btn btn-primary btn-sm" style="margin:0">' + tiny('upload', 13) + (has ? '替换 PDF' : '上传 PDF') +
+            '<input type="file" accept="application/pdf,.pdf" style="display:none" onchange="QZ.actions.resumeUpload(\'' + x.id + '\', this.files[0]); this.value=\'\'"></label>' +
+            (has ? '<button class="btn btn-soft btn-sm" onclick="QZ.actions.resumeOpen(\'' + x.id + '\')">预览</button>' +
+              '<button class="btn btn-soft btn-sm" onclick="QZ.actions.resumeDownload(\'' + x.id + '\')">下载</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.resumeDelFile(\'' + x.id + '\')">删除文件</button>' : '') +
+            '</div></div>' +
+            '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">' + linkBtn(x.link) + editBtn('resumes', x.id) + delBtn('resumes', x.id) + '</div>' +
+            '</div>';
+        }).join('') + '</div>' +
+        '<div class="note" style="margin-top:10px"><b>说明</b>：PDF 以二进制存在浏览器 IndexedDB 里（容量远大于 localStorage），换浏览器 / 清理浏览数据会丢，重要版本建议同时在「网盘 / 在线链接」里留一份备份。</div>'
     });
 
     html += '<div class="grid grid-2" style="margin-top:14px">' +
