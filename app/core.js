@@ -252,7 +252,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v40';
+  QZ.VERSION = 'v41';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -1375,6 +1375,7 @@
     if (!user) { document.getElementById('loginErr').textContent = '账号或密码不正确'; return; }
     if (!user.active) { document.getElementById('loginErr').textContent = '该账号已被停用，请联系管理员'; return; }
     QZ.user = user;
+    QZ.loadFileIndex();   // 读出本机已存的简历 PDF 索引
     try { sessionStorage.setItem(SESSION, user.username); } catch (e) { }
     document.getElementById('login').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
@@ -1388,6 +1389,134 @@
     if (e && e.preventDefault) e.preventDefault();
     doLogin(document.getElementById('loginUser').value.trim(), document.getElementById('loginPass').value);
     return false;
+  };
+
+  /* ---------------- 简历 PDF 上传（本机 IndexedDB） ---------------- */
+
+  QZ.files = {};   /* id -> 1，表示本地已有 PDF 文件 */
+
+  /** 启动时把 IndexedDB 里已有的文件 id 读出来，供列表渲染 */
+  function loadFileIndex() {
+    try {
+      var S = global.ResumeStore;
+      if (!S || !S.keys) return;
+      S.keys().then(function (ks) {
+        (ks || []).forEach(function (k) { QZ.files[String(k)] = 1; });
+        if (QZ.user) QZ.render();
+      }).catch(function () { });
+    } catch (e) { }
+  }
+  QZ.loadFileIndex = loadFileIndex;
+
+  function fmtSize(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+    return (n / 1024 / 1024).toFixed(2) + ' MB';
+  }
+  QZ.fmtSize = fmtSize;
+
+  function resumeRec(id) {
+    var l = QZ.data.resumes || [];
+    for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i];
+    return null;
+  }
+
+  function withBlob(id, cb) {
+    var S = global.ResumeStore;
+    if (!S) { QZ.toast('本浏览器不支持本地文件存储（IndexedDB），PDF 上传不可用'); return; }
+    S.get(id).then(function (r) {
+      if (!r || !r.blob) { QZ.toast('没读到文件，可能已被浏览器清理，请重新上传'); return; }
+      cb(r);
+    }).catch(function (e) { QZ.toast('读取失败：' + ((e && e.message) || '未知错误')); });
+  }
+
+  QZ.actions = QZ.actions || {};
+  QZ.actions.resumeUpload = function (id, file) {
+    try {
+      if (!file) { QZ.toast('没选到文件'); return; }
+      if (!(file.type === 'application/pdf' || /\.pdf$/i.test(file.name))) {
+        QZ.toast('请选择 PDF 文件（其他格式请先导出成 PDF）'); return;
+      }
+      if (file.size > 20 * 1024 * 1024) { QZ.toast('文件超过 20MB，先压缩一下再上传'); return; }
+      var rec = resumeRec(id);
+      if (!rec) { QZ.toast('简历记录不存在，先点「新增版本」'); return; }
+      var S = global.ResumeStore;
+      if (!S) { QZ.toast('本浏览器不支持本地文件存储，无法上传 PDF'); return; }
+      QZ.toast('正在保存到本机…');
+      var d = new Date(), pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+      var at = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      S.put(id, file, { name: file.name, size: file.size, at: at }).then(function () {
+        rec.fileName = file.name; rec.fileSize = file.size; rec.fileAt = at;
+        if (!rec.name) rec.name = file.name.replace(/\.pdf$/i, '');
+        if (!rec.updatedAt) rec.updatedAt = QZ.today();
+        QZ.files[String(id)] = 1;
+        QZ.save(); QZ.render();
+        QZ.toast('已保存 PDF（' + fmtSize(file.size) + '）：' + file.name);
+      }).catch(function (e) { QZ.toast('保存失败：' + ((e && e.message) || '未知错误')); });
+    } catch (e) { QZ.toast('上传失败：' + e.message); }
+  };
+
+  /** 新标签预览 */
+  QZ.actions.resumeOpen = function (id) {
+    withBlob(id, function (r) {
+      try {
+        var url = URL.createObjectURL(r.blob);
+        var w = window.open(url, '_blank');
+        if (!w) QZ.toast('浏览器拦截了新窗口，请允许弹窗后重试');
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      } catch (e) { QZ.toast('打开失败：' + e.message); }
+    });
+  };
+
+  /** 下载到本地 */
+  QZ.actions.resumeDownload = function (id) {
+    withBlob(id, function (r) {
+      try {
+        var url = URL.createObjectURL(r.blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = r.name || ('简历-' + id + '.pdf');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+      } catch (e) { QZ.toast('下载失败：' + e.message); }
+    });
+  };
+
+  /** 直接选一个 PDF → 自动建一条版本记录并存文件 */
+  QZ.actions.resumeNewFromFile = function (file) {
+    try {
+      if (!file) return;
+      if (!(file.type === 'application/pdf' || /\.pdf$/i.test(file.name))) {
+        QZ.toast('请选择 PDF 文件（其他格式请先导出成 PDF）'); return;
+      }
+      if (!QZ.canEdit()) { QZ.toast('当前是只读账号，不能新增简历版本'); return; }
+      var nm = file.name.replace(/\.pdf$/i, '');
+      var rec = {
+        id: QZ.uid(), name: nm, target: '待填', version: 'v1',
+        updatedAt: QZ.today(), link: '', highlight: '', note: '由 PDF 上传自动创建'
+      };
+      QZ.data.resumes.unshift(rec);
+      QZ.save();
+      QZ.actions.resumeUpload(rec.id, file);
+    } catch (e) { QZ.toast('创建失败：' + e.message); }
+  };
+
+  /** 只删文件，保留记录 */
+  QZ.actions.resumeDelFile = function (id) {
+    var rec = resumeRec(id);
+    QZ.confirm('删除该简历的 PDF 文件？（版本记录本身保留，可随时重传）', function () {
+      var S = global.ResumeStore;
+      if (!S) { QZ.toast('本地文件存储不可用'); return; }
+      S.del(id).then(function () {
+        if (rec) { delete rec.fileName; delete rec.fileSize; delete rec.fileAt; }
+        delete QZ.files[String(id)];
+        QZ.save(); QZ.render();
+        QZ.toast('已删除 PDF 文件');
+      }).catch(function (e) { QZ.toast('删除失败：' + ((e && e.message) || '未知错误')); });
+    });
   };
 
   /* ---------------- 启动 ---------------- */
