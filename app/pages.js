@@ -337,6 +337,9 @@
     return m || '—';
   }
 
+  /* 内置「近 5 天校招汇总表」数据版本 —— 每次更新数据记得同步改这里（n/日期/ver） */
+  var LATEST = { n: 791, dates: '2026-09-18 ~ 09-22', ver: 'dv39' };
+
   /* =============== 2. 岗位投递库 =============== */
   function pageJobs() {
     var f = QZ.filters.jobs || (QZ.filters.jobs = { status: '', category: '', kw: '', page: 1 });
@@ -365,12 +368,25 @@
     }
     QZ._jobsView = list;
 
+    /* 内置汇总表更新提示：本地数据还没换到最新一批时，在岗位页顶部引导一键载入 */
+    var loadedVer = '';
+    try { loadedVer = localStorage.getItem('qz_latest_loaded') || ''; } catch (e) { }
+    var updBanner = '';
+    if (loadedVer !== LATEST.ver) {
+      updBanner = '<div class="note yellow" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+        '<span style="flex:1;min-width:240px"><b>内置汇总表已更新：' + LATEST.n + ' 条（' + LATEST.dates + '）</b>。' +
+        '你当前岗位库是 ' + QZ.data.jobs.length + ' 条' + (QZ.data.jobs.length && QZ.data.jobs.length !== LATEST.n ? '（上一批，最新只到 09-21）' : '') +
+        '，需要重新载入才有最新数据（含「公告」链接）。</span>' +
+        '<button class="btn btn-primary btn-sm" onclick="QZ.actions.loadLatest()">一键载入新版（' + LATEST.n + ' 条）</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.latestDismiss()">暂不更新</button></div>';
+    }
+
     var html = '<div class="grid grid-4" style="margin-bottom:14px">' +
       QZ.statCard(n, '投递总数', '覆盖 ' + new Set(QZ.data.jobs.map(function (x) { return x.company; })).size + ' 家企业', 'job') +
       QZ.statCard(cnt('笔试中') + cnt('面试中'), '流程推进中', '笔试 ' + cnt('笔试中') + ' · 面试 ' + cnt('面试中'), 'sync') +
       QZ.statCard(cnt('已Offer'), '已获 Offer', OfferSalary(), 'offer') +
       QZ.statCard(cnt('已结束') + cnt('待投递'), '待投 / 结束', '及时补投，保持每日 2 个', 'flag') +
-      '</div>';
+      '</div>' + updBanner;
 
     /* 分页：一次只渲染 50 行，避免 9000+ 行 DOM 卡死 */
     var PAGE_SIZE = 50;
@@ -1323,9 +1339,9 @@
       });
     },
 
-    /* 一键载入内置的「近 5 天校招汇总表」已清洗数据（每次更新数据记得同步改这里） */
+    /* 一键载入内置的「近 5 天校招汇总表」已清洗数据（版本见上方 LATEST 常量） */
     loadLatest: function () {
-      var META = { n: 791, dates: '2026-09-18 ~ 09-22', ver: 'v37' };
+      var META = LATEST;
       var URL = 'assets/latest-jobs.json?' + META.ver;
       function doLoad(clearFirst) {
         QZ.closeModal();
@@ -1346,6 +1362,7 @@
               QZ.filters.jobs.sort = 'new';
               QZ.filters.jobs.page = 1;
               QZ.render();
+              try { localStorage.setItem('qz_latest_loaded', META.ver); } catch (e) { }
               QZ.toast('已载入 ' + rows.length + ' 条，最新更新日 ' + (mx || '—') + '（已按更新时间从新到旧排序）');
             } catch (e) { }
           }, 900);
@@ -1362,6 +1379,13 @@
           '<button class="btn btn-ghost btn-sm" data-actx="merge">保留现有、合并载入</button></div>',
         onExtra: function (act) { doLoad(act === 'clean'); }
       });
+    },
+
+    /* 关掉「内置汇总表已更新」提示（本次版本不再提醒，下次更新数据后会再出现） */
+    latestDismiss: function () {
+      try { localStorage.setItem('qz_latest_loaded', LATEST.ver); } catch (e) { }
+      QZ.render();
+      QZ.toast('已隐藏提示；需要时到设置中心点「一键载入最新汇总表」');
     },
 
     /* 把「已投递」批量改回「待投递」 */
