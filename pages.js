@@ -24,6 +24,7 @@
         { key: 'status', label: '当前状态', type: 'select', options: D.JOB_STATUS, def: '已投递' },
         { key: 'salary', label: '薪资范围', ph: '如：16K×15' },
         { key: 'link', label: '投递链接', ph: 'https://' },
+        { key: 'notice', label: '公告链接（招聘原文 / 公告页）', ph: 'https://' },
         { key: 'remark', label: '备注 / 跟进要点', type: 'textarea', full: true },
         { key: 'jd', label: '岗位 JD（粘贴后可做适配分析）', type: 'textarea', full: true }
       ],
@@ -204,6 +205,12 @@
   function linkBtn(url) {
     if (!url) return '<span style="color:var(--muted)">—</span>';
     return '<a class="btn btn-soft btn-sm" href="' + esc(url) + '" target="_blank" rel="noopener">' + tiny('link', 13) + '打开</a>';
+  }
+
+  /* 公告链接（招聘原文 / 公告页）—— 与投递链接分开存，方便回看 JD 原文 */
+  function noticeBtn(url) {
+    if (!url) return '';
+    return '<a class="btn btn-ghost btn-sm" href="' + esc(url) + '" target="_blank" rel="noopener" title="打开招聘公告原文（岗位 JD 出处）">' + tiny('doc', 13) + '公告</a>';
   }
 
   /* 岗位行里的「适配分」单元格：取该岗位最近一次分析报告 */
@@ -401,7 +408,8 @@
         '<span class="chip">共 ' + list.length + ' 条</span></div>' +
         QZ.table(['企业', '岗位 / 方向', '城市', '渠道 / 内推', '更新时间', '投递截止', '状态（可切换）', '薪资', '备注', '适配', '操作'],
           rows.map(function (x) {
-            return '<tr><td class="nowrap"><b>' + esc(x.company) + '</b><br>' + linkBtn(x.link) + '</td>' +
+            return '<tr><td class="nowrap"><b>' + esc(x.company) + '</b><br>' + linkBtn(x.link) +
+              (x.notice && x.notice !== x.link ? '<br>' + noticeBtn(x.notice) : '') + '</td>' +
               '<td>' + esc(x.position) + '<br><span class="tag">' + esc(x.category || '—') + '</span></td>' +
               '<td class="nowrap">' + esc(x.city) + '</td>' +
               '<td>' + esc(x.channel) + (x.referrer ? '<br><span class="tag">内推：' + esc(x.referrer) + '</span>' : '') + '</td>' +
