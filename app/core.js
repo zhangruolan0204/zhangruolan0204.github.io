@@ -252,7 +252,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v38';
+  QZ.VERSION = 'v39';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -391,7 +391,8 @@
     status: ['status', '投递状态', '状态', '当前状态', '进度', '流程状态'],
     channel: ['channel', '投递渠道', '渠道', '来源', '投递方式', '公告来源'],
     referrer: ['referrer', '内推人', '推荐人', '内推码', '内推', '内推链接'],
-    link: ['link', '投递链接', '链接', '原文链接', '岗位链接', 'url', '详情链接'],
+    link: ['link', '投递链接', '链接', '岗位链接', 'url', '详情链接', '网申链接'],
+    notice: ['notice', '公告链接', '公告地址', '公告原文', '原文链接', '招聘公告'],
     appliedAt: ['appliedAt', '投递时间', '投递日期', '日期', '开始时间', '开放时间', '更新时间'],
     deadline: ['deadline', '截止时间', '截止日期', '网申截止', '投递截止', 'Due', '结束时间'],
     salary: ['salary', '薪资', '薪酬', '待遇', '月薪', '工资'],
@@ -1210,6 +1211,8 @@
         (filled < 4 ? '<div class="note" style="margin-bottom:8px">简历档案内容太少，分析结果会偏保守。建议先到设置中心用「从简历自动识别」或「导入档案 JSON」把档案填好。</div>' : '') +
         (window.FitAnalyzer && window.FitAnalyzer.jdQuality(jdText, job) === 'weak'
           ? '<div class="note yellow" style="margin-bottom:8px">这条岗位<b>没有录入 JD</b>，下面是系统按岗位名称生成的方向级草稿。粘贴真实 JD 后点「保存 JD」再分析，分数才精确到具体能力项；没 JD 时不会判「不匹配」，只会给方向级粗估。</div>' : '') +
+        (job.notice ? '<div style="margin-bottom:6px"><a class="btn btn-ghost btn-sm" href="' + QZ.esc(job.notice) + '" target="_blank" rel="noopener">在新标签打开招聘公告原文</a>' +
+          '<span class="muted" style="font-size:12px;margin-left:6px">从公告里把 JD 复制下来粘到下面，分析更准</span></div>' : '') +
         '<div style="font-size:12.5px;color:var(--text-2);margin-bottom:4px">岗位 JD（可手动修改，改完点「保存 JD」）</div>' +
         '<textarea id="fitJd" rows="7" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:12px;background:#FCFBF8;font-size:12.5px;line-height:1.6">' + QZ.esc(jdText) + '</textarea>' +
         '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">' +
