@@ -643,12 +643,17 @@
             '<input type="file" accept="application/pdf,.pdf" style="display:none" onchange="QZ.actions.resumeUpload(\'' + x.id + '\', this.files[0]); this.value=\'\'"></label>' +
             (has ? '<button class="btn btn-soft btn-sm" onclick="QZ.actions.resumeOpen(\'' + x.id + '\')">预览</button>' +
               '<button class="btn btn-soft btn-sm" onclick="QZ.actions.resumeDownload(\'' + x.id + '\')">下载</button>' +
+              '<button class="btn btn-soft btn-sm" onclick="QZ.actions.resumeExtract(\'' + x.id + '\')">' + (x.text ? '重新提取文字' : '提取 PDF 文字') + '</button>' +
+              (x.text ? '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.resumeShowText(\'' + x.id + '\')">查看文字 / 更新档案</button>' : '') +
               '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.resumeDelFile(\'' + x.id + '\')">删除文件</button>' : '') +
-            '</div></div>' +
+            '</div>' +
+            (x.text ? '<div style="font-size:12px;color:var(--teal-dark);margin-top:6px">已提取文字 ' + String(x.text).length + ' 字' +
+              (x.textPages ? '（' + x.textPages + ' 页）' : '') + ' · ' + esc(x.textAt || '') + '</div>' : '') +
+            '</div>' +
             '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">' + linkBtn(x.link) + editBtn('resumes', x.id) + delBtn('resumes', x.id) + '</div>' +
             '</div>';
         }).join('') + '</div>' +
-        '<div class="note" style="margin-top:10px"><b>说明</b>：PDF 以二进制存在浏览器 IndexedDB 里（容量远大于 localStorage），换浏览器 / 清理浏览数据会丢，重要版本建议同时在「网盘 / 在线链接」里留一份备份。</div>'
+        '<div class="note" style="margin-top:10px"><b>说明</b>：PDF 以二进制存在浏览器 IndexedDB 里（容量远大于 localStorage），换浏览器 / 清理浏览数据会丢，重要版本建议同时在「网盘 / 在线链接」里留一份备份。<br><b>PDF 文字提取</b>用本机 pdf.js 完成（首次点击会加载约 320KB 的解析库，之后缓存在浏览器里），提取出的文字可以直接一键写入「我的简历档案」，供网申自动填充与岗位适配分析使用；<b>扫描件 / 图片版 PDF 提取不到文字</b>，那种只能手动复制文本。</div>'
     });
 
     html += '<div class="grid grid-2" style="margin-top:14px">' +
