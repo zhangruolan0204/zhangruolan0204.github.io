@@ -984,10 +984,10 @@
         '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.clearJobs()">只清空岗位投递库（' + QZ.data.jobs.length + ' 条）</button>' +
         '<button class="btn btn-danger btn-sm" onclick="QZ.actions.clearData()">清空全部业务数据</button>' +
         '<button class="btn btn-primary btn-sm" onclick="QZ.actions.clearAndImport()">清空并重新导入</button>' +
-        '<button class="btn btn-soft btn-sm" onclick="QZ.actions.loadLatest()">一键载入最新汇总表（785 条）</button>' +
+        '<button class="btn btn-soft btn-sm" onclick="QZ.actions.loadLatest()">一键载入最新汇总表（791 条 · 09-18~09-22）</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.resetJobStatus()">「已投递」全部改回「待投递」（' +
         QZ.data.jobs.filter(function (x) { return x.status === '已投递'; }).length + ' 条）</button></div>' +
-        '<div class="note" style="margin-top:10px"><b>一键载入最新汇总表</b>：内置已清洗好的「婉清学姐校招汇总表」近 5 天更新数据（785 条），行业方向、截止时间、投递链接都已填好，直接点即可，不用再选文件。</div>' +
+        '<div class="note" style="margin-top:10px"><b>一键载入最新汇总表</b>：内置已清洗好的「婉清学姐校招汇总表」近 5 天更新数据（791 条 · 2026-09-18 ~ 09-22），行业方向、截止时间、投递链接都已填好，直接点即可，不用再选文件。</div>' +
         '<div class="note" style="margin-top:10px">以上操作均<b>保留账号密码与同步设置</b>，只清除业务数据。清空后可点「导入 Excel / CSV」或「导入引导」重新导入。</div>' +
         '<div class="note" style="margin-top:10px">全站配色固定为「浅青主色 + 米白背景 + 纯白卡片」方案（B 方案），图标统一原创手绘卡通马卡龙风格，如需调整样式可修改 styles.css 顶部的 CSS 变量。</div>'
     });
@@ -1291,9 +1291,10 @@
       });
     },
 
-    /* 一键载入内置的「近 5 天校招汇总表」已清洗数据 */
+    /* 一键载入内置的「近 5 天校招汇总表」已清洗数据（每次更新数据记得同步改这里） */
     loadLatest: function () {
-      var URL = 'assets/latest-jobs.json?v=30';
+      var META = { n: 791, dates: '2026-09-18 ~ 09-22', ver: 'v37' };
+      var URL = 'assets/latest-jobs.json?' + META.ver;
       function doLoad(clearFirst) {
         QZ.closeModal();
         QZ.toast(clearFirst ? '正在清空并载入…' : '正在载入…');
@@ -1303,14 +1304,14 @@
         }).then(function (rows) {
           if (!Array.isArray(rows)) throw new Error('数据格式不是数组');
           if (clearFirst) { QZ.data.jobs = []; QZ.filters.jobs = { status: '', category: '', kw: '', page: 1 }; }
-          QZ.runSync({ text: JSON.stringify(rows), target: 'jobs', mode: 'overwrite', from: '内置汇总表（近5天 785 条）' });
+          QZ.runSync({ text: JSON.stringify(rows), target: 'jobs', mode: 'overwrite', from: '内置汇总表（近5天 ' + rows.length + ' 条 · ' + META.dates + '）' });
         }).catch(function (e) {
           QZ.toast('载入失败：' + e.message + '（请确认能正常访问本站点）');
         });
       }
       QZ.modal({
         title: '一键载入最新汇总表',
-        desc: '内置「婉清学姐校招汇总表」近 5 天更新数据：785 条，已去广告、已填行业方向与截止时间，状态默认为「待投递」。当前岗位库 ' + QZ.data.jobs.length + ' 条。',
+        desc: '内置「婉清学姐校招汇总表」近 5 天更新数据：' + META.n + ' 条（' + META.dates + '），已去广告、已填行业方向与截止时间，状态默认为「待投递」。当前岗位库 ' + QZ.data.jobs.length + ' 条。',
         html: '<div class="note teal">选择载入方式（账号密码与其他模块不受影响）：</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
           '<button class="btn btn-primary btn-sm" data-actx="clean">清空岗位库后载入（推荐）</button>' +
