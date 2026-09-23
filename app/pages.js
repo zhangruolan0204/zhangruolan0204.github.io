@@ -320,6 +320,16 @@
     return html;
   }
 
+  /* 当前筛选结果里最新的「更新时间」 */
+  function latestUpd(list) {
+    var m = '';
+    (list || []).forEach(function (x) {
+      var v = String(x.appliedAt || '');
+      if (v && v > m) m = v;
+    });
+    return m || '—';
+  }
+
   /* =============== 2. 岗位投递库 =============== */
   function pageJobs() {
     var f = QZ.filters.jobs || (QZ.filters.jobs = { status: '', category: '', kw: '', page: 1 });
@@ -335,6 +345,17 @@
     var fitStore = QZ.data.fitReports || {};
     var fitScoreOf = function (id) { var a = fitStore[id]; return (a && a[0]) ? a[0].score : -1; };
     if (f.sort === 'score') list = list.slice().sort(function (a, b) { return fitScoreOf(b.id) - fitScoreOf(a.id); });
+    /* 更新时间排序：新→旧 / 旧→新（缺省日期排最后） */
+    if (f.sort === 'new' || f.sort === 'old') {
+      var asc = (f.sort === 'old');
+      list = list.slice().sort(function (a, b) {
+        var x = String(a.appliedAt || ''), y = String(b.appliedAt || '');
+        if (x === y) return 0;
+        if (!x) return 1;
+        if (!y) return -1;
+        return asc ? (x < y ? -1 : 1) : (x > y ? -1 : 1);
+      });
+    }
     QZ._jobsView = list;
 
     var html = '<div class="grid grid-4" style="margin-bottom:14px">' +
@@ -372,7 +393,10 @@
         '<label>方向</label><select onchange="QZ.setFilter(\'jobs\',\'category\',this.value)">' + categoryOptions + '</select>' +
         '<label>排序</label><select onchange="QZ.setFilter(\'jobs\',\'sort\',this.value)">' +
         '<option value=""' + (!f.sort ? ' selected' : '') + '>默认</option>' +
+        '<option value="new"' + (f.sort === 'new' ? ' selected' : '') + '>更新时间 新→旧</option>' +
+        '<option value="old"' + (f.sort === 'old' ? ' selected' : '') + '>更新时间 旧→新</option>' +
         '<option value="score"' + (f.sort === 'score' ? ' selected' : '') + '>适配分高→低</option></select>' +
+        (list.length ? '<span class="chip gray">本页最新 ' + esc(latestUpd(list)) + '</span>' : '') +
         '<input placeholder="搜索企业 / 岗位 / 城市" value="' + esc(f.kw) + '" onchange="QZ.setFilter(\'jobs\',\'kw\',this.value)">' +
         '<span class="chip">共 ' + list.length + ' 条</span></div>' +
         QZ.table(['企业', '岗位 / 方向', '城市', '渠道 / 内推', '更新时间', '投递截止', '状态（可切换）', '薪资', '备注', '适配', '操作'],
@@ -1305,6 +1329,18 @@
           if (!Array.isArray(rows)) throw new Error('数据格式不是数组');
           if (clearFirst) { QZ.data.jobs = []; QZ.filters.jobs = { status: '', category: '', kw: '', page: 1 }; }
           QZ.runSync({ text: JSON.stringify(rows), target: 'jobs', mode: 'overwrite', from: '内置汇总表（近5天 ' + rows.length + ' 条 · ' + META.dates + '）' });
+          /* 载入后自动按「更新时间 新→旧」排，并提示这批数据的最新日期 */
+          setTimeout(function () {
+            try {
+              var mx = '';
+              (QZ.data.jobs || []).forEach(function (x) { var v = String(x.appliedAt || ''); if (v && v > mx) mx = v; });
+              QZ.filters.jobs = QZ.filters.jobs || {};
+              QZ.filters.jobs.sort = 'new';
+              QZ.filters.jobs.page = 1;
+              QZ.render();
+              QZ.toast('已载入 ' + rows.length + ' 条，最新更新日 ' + (mx || '—') + '（已按更新时间从新到旧排序）');
+            } catch (e) { }
+          }, 900);
         }).catch(function (e) {
           QZ.toast('载入失败：' + e.message + '（请确认能正常访问本站点）');
         });
