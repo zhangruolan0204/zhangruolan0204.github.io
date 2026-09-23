@@ -252,7 +252,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v36';
+  QZ.VERSION = 'v37';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
