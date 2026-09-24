@@ -80,9 +80,39 @@
     QZ.ensureSync();
     QZ.save();
   };
+  var _lastRaw = '';
   QZ.save = function () {
     QZ.data.updatedAt = new Date().toISOString().slice(0, 10) + ' ' + new Date().toTimeString().slice(0, 5);
-    try { localStorage.setItem(KEY, JSON.stringify(QZ.data)); } catch (e) { QZ.toast('本地存储写入失败'); }
+    try {
+      var raw = JSON.stringify(QZ.data);
+      localStorage.setItem(KEY, raw);
+      _lastRaw = raw;
+    } catch (e) { QZ.toast('本地存储写入失败（多半已占满），到设置中心「数据管理」里清空岗位分析报告'); }
+  };
+  /** 本地数据占用字节数（UTF-16 下约等于 2 倍字符数） */
+  QZ.storageBytes = function () {
+    try {
+      var n = 0;
+      for (var k in localStorage) if (Object.prototype.hasOwnProperty.call(localStorage, k)) n += (localStorage.getItem(k) || '').length + k.length;
+      return n;
+    } catch (e) { return 0; }
+  };
+  /** 多标签页保护：别的标签页改了数据，本页跟着刷新，避免互相静默覆盖 */
+  QZ.attachStorageSync = function () {
+    try {
+      global.addEventListener('storage', function (e) {
+        try {
+          if (!e || e.key !== KEY) return;
+          var nv = e.newValue;
+          if (!nv || nv === _lastRaw) return;
+          var d = JSON.parse(nv);
+          if (!d || !d.jobs) return;
+          QZ.data = d;
+          QZ.ensureSync();
+          if (QZ.user) { QZ.render(); QZ.toast('已同步另一个标签页的最新改动'); }
+        } catch (err) { }
+      });
+    } catch (e) { }
   };
   QZ.resetData = function () {
     QZ.data = JSON.parse(JSON.stringify(D.seed));
@@ -252,7 +282,7 @@
   QZ.syncFromHash = syncFromHash;
 
   /* 底部细提示条：显示实际运行的版本与模块数，出错时整条变红 */
-  QZ.VERSION = 'v42';
+  QZ.VERSION = 'v43';
   QZ.hideVerbar = function () {
     try { localStorage.setItem('qz_verbar_hide', QZ.VERSION); } catch (e) { }
     var b = document.getElementById('verbar');
@@ -530,9 +560,14 @@
     return item;
   }
 
+  /* 用户手工填写的「跟进字段」：导入/同步时默认保留，不被数据源覆盖
+     （v43：此前 overwrite 会整体覆盖，导致用户改过的投递状态、备注被冲成「待投递」） */
+  var KEEP_USER_FIELD = { status: 1, channel: 1, referrer: 1, remark: 1, salary: 1, jd: 1 };
+  function userFilled(x, k) { return x && x[k] !== undefined && String(x[k] || '').trim() !== ''; }
+
   function mergeInto(ckey, rows, mode) {
     var list = QZ.data[ckey] || (QZ.data[ckey] = []);
-    var added = 0, updated = 0;
+    var added = 0, updated = 0, kept = 0;
     /* 先对已有数据建哈希索引：万级数据导入时避免 O(n²) 全表扫描导致浏览器卡死 */
     var index = {};
     for (var i = 0; i < list.length; i++) {
@@ -545,8 +580,20 @@
       var exist = index[key] || null;
       var item = buildItem(ckey, r);
       if (exist) {
-        if (mode === 'overwrite') {
-          Object.keys(item).forEach(function (k) { exist[k] = item[k]; });
+        if (mode === 'merge') {
+          /* 只补空字段：已有内容一律不动（真正意义的「合并」） */
+          Object.keys(item).forEach(function (k) {
+            if (k === 'id' || k === '_src') return;
+            if (exist[k] === undefined || !String(exist[k] || '').trim()) exist[k] = item[k];
+          });
+          updated++;
+        } else if (mode === 'overwrite') {
+          Object.keys(item).forEach(function (k) {
+            if (k === 'id') return;
+            /* 用户填过跟进信息的字段保留，避免状态/备注被数据源重置 */
+            if (KEEP_USER_FIELD[k] && userFilled(exist, k)) { kept++; return; }
+            exist[k] = item[k];
+          });
           exist.id = exist.id || item.id;
           updated++;
         }
@@ -555,7 +602,7 @@
         if (index[key] === undefined) index[key] = item;
       }
     });
-    return { added: added, updated: updated };
+    return { added: added, updated: updated, kept: kept };
   }
 
   function pushSyncLog(entry) {
@@ -1599,6 +1646,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     QZ.load();
+    QZ.attachStorageSync();   // 多标签页同时打开时互相同步，避免状态被旧标签页覆盖
     document.getElementById('loginIcon').innerHTML = QZ.shin('cap', 64);
     document.getElementById('brandIcon').innerHTML = QZ.shin('cap', 40);
     // 登录提交改由表单内联 onsubmit 调用 QZ.loginSubmit，去掉此处重复监听，避免重复登录
