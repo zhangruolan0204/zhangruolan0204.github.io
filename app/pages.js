@@ -1051,7 +1051,11 @@
         '<div class="mini-stat"><span>待办</span><b>' + QZ.data.todos.length + ' 条</b></div>' +
         '<div class="mini-stat"><span>资源</span><b>' + QZ.data.resources.length + ' 条</b></div>' +
         '<div class="mini-stat"><span>最近更新</span><b>' + esc(QZ.data.updatedAt) + '</b></div>' +
+        '<div class="mini-stat"><span>本机占用</span><b>' + QZ.fmtSize(QZ.storageBytes()) + '</b></div>' +
+        '<div class="mini-stat"><span>已改过状态</span><b>' +
+        QZ.data.jobs.filter(function (x) { return x.status && x.status !== '待投递'; }).length + ' 条</b></div>' +
         '</div>' +
+        '<div class="note teal" style="margin-top:10px"><b>为什么我的投递状态会没？</b>数据存在<b>本机浏览器</b>里（不是服务器），以下三种情况会丢：① 选了「清空重来」载入新数据（状态会重置成待投递）；② 同时开了多个标签页，旧标签页里的旧数据覆盖了新改动；③ 清了浏览器数据 / 换了浏览器 / 用了无痕窗口。现在已修好前两条：更新数据默认<b>保留</b>你改过的状态与备注，多标签页之间也会自动同步。</div>' +
         '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">' +
         '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.resetData()">恢复初始样例数据</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="QZ.actions.clearJobs()">只清空岗位投递库（' + QZ.data.jobs.length + ' 条）</button>' +
@@ -1368,16 +1372,18 @@
     loadLatest: function () {
       var META = LATEST;
       var URL = 'assets/latest-jobs.json?' + META.ver;
-      function doLoad(clearFirst) {
+      function doLoad(mode) {
         QZ.closeModal();
-        QZ.toast(clearFirst ? '正在清空并载入…' : '正在载入…');
+        QZ.toast(mode === 'clean' ? '正在清空并载入…' : '正在载入…');
         fetch(URL, { cache: 'no-store' }).then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();
         }).then(function (rows) {
           if (!Array.isArray(rows)) throw new Error('数据格式不是数组');
-          if (clearFirst) { QZ.data.jobs = []; QZ.filters.jobs = { status: '', category: '', kw: '', page: 1 }; }
-          QZ.runSync({ text: JSON.stringify(rows), target: 'jobs', mode: 'overwrite', from: '内置汇总表（近5天 ' + rows.length + ' 条 · ' + META.dates + '）' });
+          if (mode === 'clean') { QZ.data.jobs = []; QZ.filters.jobs = { status: '', category: '', kw: '', page: 1 }; }
+          /* 统计载入前有多少条已改过状态，用来告诉用户保住了多少 */
+          var myEdit = (QZ.data.jobs || []).filter(function (x) { return x.status && x.status !== '待投递'; }).length;
+          QZ.runSync({ text: JSON.stringify(rows), target: 'jobs', mode: (mode === 'merge' ? 'merge' : 'overwrite'), from: '内置汇总表（近5天 ' + rows.length + ' 条 · ' + META.dates + '）' });
           /* 载入后自动按「更新时间 新→旧」排，并提示这批数据的最新日期 */
           setTimeout(function () {
             try {
@@ -1388,21 +1394,36 @@
               QZ.filters.jobs.page = 1;
               QZ.render();
               try { localStorage.setItem('qz_latest_loaded', META.ver); } catch (e) { }
-              QZ.toast('已载入 ' + rows.length + ' 条，最新更新日 ' + (mx || '—') + '（已按更新时间从新到旧排序）');
+              var tail = (mode === 'clean')
+                ? '（你之前改过的状态已随清空重置为「待投递」）'
+                : (mode === 'merge'
+                  ? '（已有岗位完全未改动，只补进了新的岗位）'
+                  : (myEdit ? ' · 已保留你改过的 ' + myEdit + ' 条状态' : ' · 你手工填的状态/渠道/备注已保留'));
+              QZ.toast('已载入 ' + rows.length + ' 条，最新更新日 ' + (mx || '—') + '（已按更新时间从新到旧排序）' + tail);
             } catch (e) { }
           }, 900);
         }).catch(function (e) {
           QZ.toast('载入失败：' + e.message + '（请确认能正常访问本站点）');
         });
       }
+      var mine = (QZ.data.jobs || []).filter(function (x) { return x.status && x.status !== '待投递'; }).length;
       QZ.modal({
         title: '一键载入最新汇总表',
-        desc: '内置「婉清学姐校招汇总表」近 5 天更新数据：' + META.n + ' 条（' + META.dates + '），已去广告、已填行业方向与截止时间，状态默认为「待投递」。当前岗位库 ' + QZ.data.jobs.length + ' 条。',
+        desc: '内置「婉清学姐校招汇总表」近 5 天更新数据：' + META.n + ' 条（' + META.dates + '），已去广告、已填行业方向与截止时间。当前岗位库 ' + QZ.data.jobs.length + ' 条' + (mine ? '，其中 ' + mine + ' 条你改过投递状态' : '') + '。',
         html: '<div class="note teal">选择载入方式（账号密码与其他模块不受影响）：</div>' +
-          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
-          '<button class="btn btn-primary btn-sm" data-actx="clean">清空岗位库后载入（推荐）</button>' +
-          '<button class="btn btn-ghost btn-sm" data-actx="merge">保留现有、合并载入</button></div>',
-        onExtra: function (act) { doLoad(act === 'clean'); }
+          '<div class="list" style="margin-top:8px">' +
+          '<div class="list-item"><div class="li-main"><div class="li-title">更新数据 · 保留我的跟进（推荐）</div>' +
+          '<div class="li-sub" style="font-size:12px;color:var(--text-2)">用新数据刷新企业、岗位、城市、链接、截止时间；<b>你填过的投递状态、渠道、内推、备注、薪资、JD 一律不动</b>。新增的岗位直接加进来。</div></div></div>' +
+          '<div class="list-item"><div class="li-main"><div class="li-title">只补新岗位 · 已有完全不动</div>' +
+          '<div class="li-sub" style="font-size:12px;color:var(--text-2)">只把这次多出来的岗位加进库里，已有岗位任何字段都不改（适合只想看增量）。</div></div></div>' +
+          '<div class="list-item"><div class="li-main"><div class="li-title">清空重来</div>' +
+          '<div class="li-sub" style="font-size:12px;color:var(--text-2)">先清空岗位库再载入，<b>你改过的状态会全部重置为「待投递」</b>，只在想彻底重来时用。</div></div></div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' +
+          '<button class="btn btn-primary btn-sm" data-actx="keep">更新数据 · 保留我的跟进</button>' +
+          '<button class="btn btn-soft btn-sm" data-actx="merge">只补新岗位</button>' +
+          '<button class="btn btn-ghost btn-sm" data-actx="clean">清空重来</button></div>',
+        onExtra: function (act) { doLoad(act === 'clean' || act === 'merge' ? act : 'keep'); }
       });
     },
 
